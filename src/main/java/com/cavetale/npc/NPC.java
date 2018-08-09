@@ -44,7 +44,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Tag;
+import org.bukkit.block.data.Bisected;
 import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Slab;
+import org.bukkit.block.data.type.Stairs;
 import org.bukkit.craftbukkit.v1_13_R1.CraftServer;
 import org.bukkit.craftbukkit.v1_13_R1.CraftWorld;
 import org.bukkit.craftbukkit.v1_13_R1.entity.CraftPlayer;
@@ -80,15 +83,19 @@ public final class NPC {
     private long ticksLived;
     // Job
     @Setter private Job job;
-    private int turn;
-    private float dir;
-    private double speed;
+    // Task
+    private Task task;
+    private int turn; // Countdown for current task duration
+    private double speed, direction;
 
     enum Type {
         PLAYER, MOB, BLOCK;
     }
     enum Job {
         NONE, WANDER;
+    }
+    enum Task {
+        NONE, WALK, TURN, LOOK_AROUND;
     }
 
     NPC(Type type, Location location) {
@@ -182,7 +189,12 @@ public final class NPC {
         this.lastHeadYaw = headYaw;
     }
 
-    void startPlayerWatch(Player player) {
+    private void setTask(Task newTask) {
+        this.task = newTask;
+        this.turn = 0;
+    }
+
+    private void startPlayerWatch(Player player) {
         PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
         switch (type) {
         case PLAYER:
@@ -239,8 +251,16 @@ public final class NPC {
                     org.bukkit.block.Block block = location.getWorld().getBlockAt(x, y, z);
                     if (block.isEmpty()) continue;
                     org.bukkit.Material mat = block.getType();
-                    if (Tag.SLABS.isTagged(mat) && location.getY() - (double)y >= 0.5) continue;
-                    if (Tag.STAIRS.isTagged(mat) && location.getY() - (double)y >= 0.5) continue;
+                    if (Tag.SLABS.isTagged(mat)
+                        && ((Slab)block.getBlockData()).getType() == Slab.Type.BOTTOM
+                        && location.getY() - (double)y >= 0.5) {
+                        continue;
+                    }
+                    if (Tag.STAIRS.isTagged(mat)
+                        && ((Stairs)block.getBlockData()).getHalf() == Bisected.Half.BOTTOM
+                        && location.getY() - (double)y >= 0.5) {
+                        continue;
+                    }
                     if (mat.isOccluding()) return true;
                     if (mat.isSolid()) return true;
                 }
@@ -273,7 +293,7 @@ public final class NPC {
 
     public void onTick() {
         if (job != null) performJob();
-        movement();
+        updateMovement();
         updateWatchers();
         ticksLived += 1;
     }
@@ -282,60 +302,123 @@ public final class NPC {
         switch (job) {
         case NONE: return;
         case WANDER:
-            if (turn == 0) {
-                dir = random.nextFloat() * 2.0f - 1.0f;
-                speed = Math.max(0.25, random.nextDouble());
-                turn = random.nextInt(100) + random.nextInt(100);
-                for (Player player: playerWatchers) {
-                    PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
-                    connection.sendPacket(new PacketPlayOutAnimation(entity, 0));
-                }
-            }
-            turn -= 1;
-            if (isBlockedAt(location) || location.getBlock().isLiquid()) {
-                location = location.add(0.0, 0.1, 0.0);
-            } else {
-                for (int i = 0; i < 6; i += 1) {
-                    Location downward = location.clone().add(0.0, -0.1, 0.0);
-                    if (!isBlockedAt(downward)) {
-                        location = downward;
-                        onGround = false;
+            if (task == Task.WALK) {
+                if (turn <= 0) {
+                    direction = random.nextFloat() * 4.0f - 2.0f;
+                    speed = Math.max(0.25, random.nextDouble());
+                    turn = 20 + random.nextInt(100);
+                } else if (turn == 1) {
+                    if (random.nextBoolean()) {
+                        setTask(Task.LOOK_AROUND);
                     } else {
-                        onGround = true;
-                        break;
+                        setTask(Task.TURN);
+                    }
+                } else {
+                    turn -= 1;
+                }
+                boolean didMoveUp = fightGravity();
+                boolean didFall = didMoveUp ? false : fall();
+                boolean didWalk = didMoveUp ? false : walkForward();
+                if (onGround) {
+                    if (didWalk) {
+                        location.setYaw(location.getYaw() + (float)direction);
+                        headYaw = (double)location.getYaw();
+                        if (turn % 16 == 0) {
+                            location.setPitch(random.nextFloat() * 0.30f);
+                        }
+                    } else {
+                        setTask(Task.TURN);
                     }
                 }
-            }
-            Vector vec = location.getDirection();
-            vec.setY(0.0);
-            vec = vec.normalize();
-            if (onGround) {
-                vec = vec.multiply(0.25 * speed);
+            } else if (task == Task.TURN) {
+                if (turn <= 0) {
+                    turn = 20 + random.nextInt(20);
+                    direction = random.nextBoolean() ? -1 : 1;
+                    speed = 2.5 + random.nextDouble() * 5.0;
+                } else if (turn == 1) {
+                    setTask(Task.WALK);
+                } else {
+                    turn -= 1;
+                }
+                if (!fightGravity() && !fall()) {
+                    headYaw = headYaw + direction * speed;
+                    location.setYaw((float)headYaw);
+                }
+            } else if (task == Task.LOOK_AROUND) {
+                if (turn <= 0) {
+                    turn = 100;
+                } else if (turn == 1) {
+                    setTask(Task.WALK);
+                } else {
+                    turn -= 1;
+                }
+                if (turn % 16 == 0) lookRandom();
             } else {
-                vec = vec.multiply(0.125);
+                setTask(Task.WALK);
             }
-            Location forward = location.clone().add(vec);
-            if (!isBlockedAt(forward)) {
-                location = forward;
-                location.setYaw(location.getYaw() + 3.0f * dir);
-            } else if (!isBlockedAt(forward.add(0.0, 0.5, 0.0))) {
-                location = forward;
-            } else {
-                location.setYaw(location.getYaw() + 10.0f * dir);
-            }
-            if (location.getYaw() > 360.0f) location.setYaw(location.getYaw() - 360.0f);
-            if (location.getYaw() < 0.0f) location.setYaw(location.getYaw() + 360.0f);
-            headYaw = location.getYaw();
-            headYaw = location.getYaw() + Math.sin((double)System.nanoTime() * 0.000000001) * 45.0;
-            location.setPitch((float)(Math.sin((double)System.nanoTime() * 0.000000001) * 22.5));
-            onGround = true;
             break;
         default:
             throw new IllegalStateException("Unhandled Job: " + job);
         }
     }
 
-    void movement() {
+    void lookRandom() {
+        double yaw = random.nextDouble() * 120.0 - 60.0;
+        double pitch = random.nextDouble() * 120.0 - 60.0;
+        headYaw = (double)location.getYaw() + yaw;
+        location.setPitch((float)pitch);
+    }
+
+    void swingArm(boolean mainHand) {
+        int val = mainHand ? 0: 3;
+        packets.add(new PacketPlayOutAnimation(entity, 0));
+    }
+
+    /** Return true if npc moved upward */
+    boolean fightGravity() {
+        if (isBlockedAt(location) || location.getBlock().isLiquid()) {
+            location = location.add(0.0, 0.1, 0.0);
+            return true;
+        }
+        return false;
+    }
+
+    /** Return true if npc moved downward */
+    boolean fall() {
+        for (int i = 0; i < 6; i += 1) {
+            Location downward = location.clone().add(0.0, -0.1, 0.0);
+            if (!isBlockedAt(downward)) {
+                location = downward;
+                onGround = false;
+            } else {
+                onGround = true;
+                return i != 0;
+            }
+        }
+        return true;
+    }
+
+    boolean walkForward() {
+        Vector vec = location.getDirection();
+        vec.setY(0.0);
+        vec = vec.normalize();
+        if (onGround) {
+            vec = vec.multiply(0.25 * speed);
+        } else {
+            vec = vec.multiply(0.125);
+        }
+        Location forward = location.clone().add(vec);
+        if (!isBlockedAt(forward)) {
+            location = forward;
+            return true;
+        } else if (!isBlockedAt(forward.add(0.0, 0.5, 0.0))) {
+            location = forward;
+            return true;
+        }
+        return false;
+    }
+
+    void updateMovement() {
         switch (type) {
         case PLAYER: case MOB: case BLOCK:
             boolean didMove =
@@ -345,6 +428,13 @@ public final class NPC {
             boolean didTurn =
                 location.getPitch() != lastLocation.getPitch()
                 || location.getYaw() != lastLocation.getYaw();
+            if (didTurn) {
+                if (location.getYaw() > 360.0f) {
+                    location.setYaw(location.getYaw() - 360.0f);
+                } else if (location.getYaw() < 0.0f) {
+                    location.setYaw(location.getYaw() + 360.0f);
+                }
+            }
             boolean didMoveHead = headYaw != lastHeadYaw;
             boolean doTeleport = false;
             double distance = lastLocation.distanceSquared(location);

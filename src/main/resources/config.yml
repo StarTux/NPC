@@ -1,0 +1,4 @@
+spawn:
+  World: Spawn
+  Chunks: []
+  Amount: 100

@@ -1,8 +1,10 @@
 package com.cavetale.npc;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import lombok.Getter;
 import org.bukkit.Chunk;
@@ -10,6 +12,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -24,12 +27,16 @@ public final class NPCPlugin extends JavaPlugin {
     private PacketHandler packetHandler;
     @Getter private static NPCPlugin instance;
     private SpawnArea spawnArea;
+    @Getter private final List<PlayerSkin> playerSkins = new ArrayList<>();
+    private int resendSkinIndex;
+    private long ticksLived;
 
     @Override
     public void onEnable() {
         instance = this;
         reloadConfig();
         saveDefaultConfig();
+        saveResource("skins.yml", false);
         getServer().getScheduler().runTaskTimer(this, this::onTick, 1, 1);
         packetHandler = new PacketHandler() {
                 @Override
@@ -54,6 +61,7 @@ public final class NPCPlugin extends JavaPlugin {
             };
         PacketListenerAPI.addPacketHandler(packetHandler);
         importConfig();
+        loadPlayerSkins();
     }
 
     void importConfig() {
@@ -61,6 +69,17 @@ public final class NPCPlugin extends JavaPlugin {
         spawnArea = new SpawnArea(this, "spawn");
         spawnArea.importConfig(getConfig().getConfigurationSection("spawn"));
         if (oldSpawnArea != null) spawnArea.getNpcs().addAll(oldSpawnArea.getNpcs());
+    }
+
+    void loadPlayerSkins() {
+        playerSkins.clear();
+        YamlConfiguration config = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "skins.yml"));
+        for (Map<String, Object> map: (List<Map<String, Object>>)config.getList("skins")) {
+            String texture = (String)map.get("texture");
+            String signature = (String)map.get("signature");
+            List<String> tags = (List<String>)map.get("tags");
+            playerSkins.add(new PlayerSkin(texture, signature, tags));
+        }
     }
 
     @Override
@@ -94,7 +113,7 @@ public final class NPCPlugin extends JavaPlugin {
                     npc = new NPC(NPC.Type.MOB, location, EntityType.valueOf(args[2].toUpperCase()));
                     break;
                 case "block":
-                    npc = new NPC(NPC.Type.BLOCK, location, Material.valueOf(args[2].toUpperCase()));
+                    npc = new NPC(NPC.Type.BLOCK, location, getServer().createBlockData(args[2]));
                     break;
                 default:
                     return false;
@@ -175,6 +194,15 @@ public final class NPCPlugin extends JavaPlugin {
     }
 
     void onTick() {
+        if (!npcs.isEmpty() && (ticksLived % 10L) == 0L) {
+            while (resendSkinIndex < npcs.size() && npcs.get(resendSkinIndex).getType() != NPC.Type.PLAYER) resendSkinIndex += 1;
+            if (resendSkinIndex < npcs.size()) {
+                npcs.get(resendSkinIndex).setResendSkin(true);
+                resendSkinIndex += 1;
+            } else {
+                resendSkinIndex = 0;
+            }
+        }
         for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
             NPC npc = iter.next();
             if (npc.isValid()) {
@@ -195,5 +223,6 @@ public final class NPCPlugin extends JavaPlugin {
             }
         }
         spawnArea.onTick();
+        ticksLived += 1;
     }
 }

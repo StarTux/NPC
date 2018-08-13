@@ -7,10 +7,9 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
-import lombok.Data;
+import java.util.concurrent.ThreadLocalRandom;
 import lombok.Getter;
 import lombok.Setter;
 import net.minecraft.server.v1_13_R1.Block;
@@ -45,16 +44,21 @@ import org.bukkit.block.data.type.Slab;
 import org.bukkit.block.data.type.Stairs;
 import org.bukkit.craftbukkit.v1_13_R1.CraftServer;
 import org.bukkit.craftbukkit.v1_13_R1.CraftWorld;
+import org.bukkit.craftbukkit.v1_13_R1.block.data.CraftBlockData;
 import org.bukkit.craftbukkit.v1_13_R1.entity.CraftPlayer;
 import org.bukkit.craftbukkit.v1_13_R1.util.CraftMagicNumbers;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
 import org.bukkit.util.Vector;
 
 @Getter
-public class NPC {
-    private Type type;
+public final class NPC {
+    private final Type type;
+    private final int id;
+    private final String name;
     @Setter private boolean valid;
     // Location
     @Setter private Location location;
@@ -62,31 +66,30 @@ public class NPC {
     private double lastHeadYaw;
     private Location lastLocation, trackLocation;
     private double locationError = 0.0, locationMoved = 0.0;
-    private boolean forceLookUpdate;
+    private boolean forceLookUpdate, forceTeleport;
     @Setter private boolean onGround;
     // Identity
-    private int id;
     private Entity entity;
-    @Setter private String displayName;
     // Mob Type
     private EntityType entityType; // Only for MOB
-    private org.bukkit.Material material; // Only for BLOCK
+    private org.bukkit.block.data.BlockData blockData; // Only for BLOCK
     private PlayerSkin playerSkin;
-    // Player info
-    private String texture, signature;
     // State
-    private Random random = new Random(System.nanoTime());
     private final List<Player> playerWatchers = new ArrayList<>();
     private final List<Packet> packets = new ArrayList<>();
     private long ticksLived;
+    @Setter private boolean resendSkin;
     // Job
     @Setter private Job job;
+    @Setter private API api = () -> { };
     // Task
     private Task task;
     private int turn; // Countdown for current task duration
     private double speed, direction;
     private LivingEntity followEntity;
     private Location followLocation;
+    // Constants
+    private static final String TEAM_NAME = "cavetale.npc";
 
     enum Type {
         PLAYER, MOB, BLOCK;
@@ -97,15 +100,10 @@ public class NPC {
     enum Task {
         NONE, WALK, TURN, LOOK_AROUND, LOOK_AT, FOLLOW;
     }
-    @Data
-    final class PlayerSkin {
-        String texture, signature;
-    }
 
-    public NPC(Type type, Location location, String displayName, PlayerSkin playerSkin) {
+    public NPC(Type type, Location location, String name, PlayerSkin playerSkin) {
         this.type = type;
         this.location = location;
-        this.displayName = displayName;
         this.playerSkin = null;
         final MinecraftServer minecraftServer = ((CraftServer)Bukkit.getServer()).getServer();
         final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
@@ -113,8 +111,8 @@ public class NPC {
         case PLAYER:
             UUID uuid;
             if (true) {
-                long lower = random.nextLong();
-                long upper = random.nextLong();
+                long lower = ThreadLocalRandom.current().nextLong();
+                long upper = ThreadLocalRandom.current().nextLong();
                 long versionMask = 0x000000000000F000;
                 long versionFlag = 0x0000000000002000;
                 upper &= ~versionMask;
@@ -123,8 +121,10 @@ public class NPC {
             } else {
                 uuid = UUID.fromString("00000000-0000-2000-0000-000000000000");
             }
-            final GameProfile profile = new GameProfile(uuid, displayName);
+            final GameProfile profile = new GameProfile(uuid, name);
             entity = new EntityPlayer(minecraftServer, worldServer, profile, new PlayerInteractManager(worldServer));
+            id = entity.getId();
+            this.name = name;
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
             if (playerSkin != null) {
                 profile.getProperties().put("texture", new Property("textures", playerSkin.texture, playerSkin.signature));
@@ -145,11 +145,10 @@ public class NPC {
         switch (type) {
         case MOB:
             entity = EntityTypes.a(entityType.getName()).a(worldServer);
+            id = entity.getId();
+            name = entity.getUniqueID().toString().replace("-", "");
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
             // Name
-            if (displayName != null) {
-                entity.getDataWatcher().set(new DataWatcherObject(2, DataWatcherRegistry.a(3)), Optional.of(new ChatComponentText(displayName)));
-            }
             if (entityType == EntityType.BAT) {
                 entity.getDataWatcher().set(new DataWatcherObject(12, DataWatcherRegistry.a(0)), (byte)0x0);
             }
@@ -159,70 +158,76 @@ public class NPC {
         }
     }
 
-    public NPC(Type type, Location location, org.bukkit.Material material) {
+    public NPC(Type type, Location location, org.bukkit.block.data.BlockData blockData) {
         this.type = type;
         this.location = location;
-        this.material = material;
+        this.blockData = blockData;
         final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
         switch (type) {
         case BLOCK:
-            entity = new EntityFallingBlock(worldServer, location.getX(), location.getY(), location.getZ(), CraftMagicNumbers.getBlock(material).getBlockData());
+            entity = new EntityFallingBlock(worldServer, location.getX(), location.getY(), location.getZ(), ((CraftBlockData)blockData).getState());
+            id = entity.getId();
+            name = entity.getUniqueID().toString().replace("-", "");
             // No Gravity
             entity.getDataWatcher().set(new DataWatcherObject(5, DataWatcherRegistry.i), Boolean.TRUE);
             entity.setPosition(location.getX(), location.getY(), location.getZ());
             break;
         default:
-            throw new IllegalArgumentException("NPC(Type, Location, Material): wrong constructor for type " + type);
+            throw new IllegalArgumentException("NPC(Type, Location, BlockData): wrong constructor for type " + type);
         }
     }
 
     // Overridable API methods
 
-    // Called when the NPC is added to the list of NPCs, before it
-    // is ticked for the first time
-    public void onEnable() { }
+    public interface API {
+        void onTick();
 
-    // Called when the NPC is removed from the list of NPCs, after it
-    // was ticked for the final time.
-    public void onDisable() { }
+        /**
+         * Called when the NPC is added to the list of NPCs, before it is
+         * ticked for the first time
+         */
+        default void onEnable() { }
 
-    public void onTick() { }
+        /**
+         * Called when the NPC is removed from the list of NPCs, after it
+         * was ticked for the final time.
+         */
+        default void onDisable() { }
 
-    public final void interact(Player player) {
-        if (job == Job.WANDER) {
-            if (task != Task.FOLLOW) {
-                setTask(Task.FOLLOW);
-                followEntity = player;
-                speed = 1.0;
-            } else {
-                setTask(Task.LOOK_AROUND);
-            }
+        default boolean canWalkIn(org.bukkit.block.Block block) {
+            return true;
+        }
+
+        default boolean canWalkOn(org.bukkit.block.Block block) {
+            return true;
         }
     }
 
     // Internal methods
 
-    final void enable() {
-        id = entity.getId();
+    void enable() {
         lastLocation = location.clone();
         trackLocation = location.clone();
         headYaw = location.getYaw();
         lastHeadYaw = headYaw;
-        onEnable();
+        api.onEnable();
         valid = true;
     }
 
-    final void disable() {
+    void disable() {
         for (Player player: playerWatchers) {
             if (!player.isValid()) continue;
             stopPlayerWatch(player);
         }
         playerWatchers.clear();
         valid = false;
-        onDisable();
+        api.onDisable();
     }
 
-    final void setTask(Task newTask) {
+    public void interact(Player player) {
+    }
+
+    void setTask(Task newTask) {
         this.task = newTask;
         this.turn = 0;
         this.direction = 0.0;
@@ -231,7 +236,7 @@ public class NPC {
         this.followLocation = null;
     }
 
-    final void startPlayerWatch(Player player) {
+    void startPlayerWatch(Player player) {
         PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
         switch (type) {
         case PLAYER:
@@ -239,14 +244,21 @@ public class NPC {
             connection.sendPacket(new PacketPlayOutNamedEntitySpawn((EntityPlayer)entity));
             connection.sendPacket(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
             Bukkit.getScheduler().runTaskLater(NPCPlugin.getInstance(), () ->
-                                               connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity)), 1L);
+                                               connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity)), 5L);
+            Scoreboard scoreboard = player.getScoreboard();
+            Team team = scoreboard.getTeam(TEAM_NAME);
+            if (team == null) {
+                team = scoreboard.registerNewTeam(TEAM_NAME);
+                team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+            }
+            if (!team.hasEntry(name)) team.addEntry(name);
             break;
         case MOB:
             connection.sendPacket(new PacketPlayOutSpawnEntityLiving((EntityLiving)entity));
             connection.sendPacket(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
             break;
         case BLOCK:
-            connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 70, Block.REGISTRY_ID.getId(CraftMagicNumbers.getBlock(material).getBlockData())));
+            connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 70, Block.REGISTRY_ID.getId(((CraftBlockData)blockData).getState())));
             connection.sendPacket(new PacketPlayOutEntityMetadata(entity.getId(), entity.getDataWatcher(), true));
             break;
         default:
@@ -254,7 +266,7 @@ public class NPC {
         }
     }
 
-    final void stopPlayerWatch(Player player) {
+    void stopPlayerWatch(Player player) {
         PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
         switch (type) {
         case PLAYER:
@@ -271,7 +283,7 @@ public class NPC {
         }
     }
 
-    public final boolean isBlockedAt(Location entityLocation) {
+    public boolean isBlockedAt(Location entityLocation) {
         float width2 = entity.width * 0.5f;
         float height = entity.length;
         Location locA = entityLocation.clone().add(-width2, 0.0, -width2);
@@ -306,25 +318,31 @@ public class NPC {
         return false;
     }
 
-    public final void tick() {
-        onTick();
+    public void tick() {
+        api.onTick();
         if (job != null) performJob();
         updateMovement();
         updateWatchers();
+        if (resendSkin && type == Type.PLAYER) {
+            resendSkin = false;
+            packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
+            Bukkit.getScheduler().runTaskLater(NPCPlugin.getInstance(), () ->
+                                               packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity)), 10L);
+        }
         ticksLived += 1;
     }
 
-    public final void performJob() {
+    public void performJob() {
         switch (job) {
         case NONE: return;
         case WANDER:
             if (task == Task.WALK) {
                 if (turn <= 0) {
-                    direction = random.nextFloat() * 4.0f - 2.0f;
-                    speed = Math.max(0.25, random.nextDouble());
-                    turn = 20 + random.nextInt(100);
+                    direction = ThreadLocalRandom.current().nextFloat() * 4.0f - 2.0f;
+                    speed = Math.max(0.25, ThreadLocalRandom.current().nextDouble());
+                    turn = 20 + ThreadLocalRandom.current().nextInt(100);
                 } else if (turn == 1) {
-                    if (random.nextBoolean()) {
+                    if (ThreadLocalRandom.current().nextBoolean()) {
                         setTask(Task.LOOK_AROUND);
                     } else {
                         setTask(Task.TURN);
@@ -340,7 +358,7 @@ public class NPC {
                         location.setYaw(location.getYaw() + (float)direction);
                         headYaw = (double)location.getYaw();
                         if (turn % 16 == 0) {
-                            location.setPitch(random.nextFloat() * 0.30f);
+                            location.setPitch(ThreadLocalRandom.current().nextFloat() * 0.30f);
                         }
                     } else {
                         setTask(Task.TURN);
@@ -348,9 +366,9 @@ public class NPC {
                 }
             } else if (task == Task.TURN) {
                 if (turn <= 0) {
-                    turn = 20 + random.nextInt(20);
-                    direction = random.nextBoolean() ? -1 : 1;
-                    speed = 2.5 + random.nextDouble() * 5.0;
+                    turn = 20 + ThreadLocalRandom.current().nextInt(20);
+                    direction = ThreadLocalRandom.current().nextBoolean() ? -1 : 1;
+                    speed = 2.5 + ThreadLocalRandom.current().nextDouble() * 5.0;
                 } else if (turn == 1) {
                     setTask(Task.WALK);
                 } else {
@@ -368,6 +386,8 @@ public class NPC {
                 } else {
                     turn -= 1;
                 }
+                fightGravity();
+                fall();
                 if (turn % 16 == 0) lookRandom();
             } else if (task == Task.LOOK_AT) {
                 if (followEntity == null) {
@@ -405,20 +425,27 @@ public class NPC {
         }
     }
 
-    public final void lookRandom() {
-        double yaw = random.nextDouble() * 120.0 - 60.0;
-        double pitch = random.nextDouble() * 120.0 - 60.0;
+    public void lookRandom() {
+        double yaw = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
+        double pitch = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
         headYaw = (double)location.getYaw() + yaw;
         location.setPitch((float)pitch);
     }
 
-    public final void swingArm(boolean mainHand) {
-        int val = mainHand ? 0 : 3;
-        packets.add(new PacketPlayOutAnimation(entity, 0));
+    public void swingArm(boolean mainHand) {
+        packets.add(new PacketPlayOutAnimation(entity, mainHand ? 0 : 3));
+    }
+
+    public void setVillagerProfession(int prof) {
+        entity.getDataWatcher().set(new DataWatcherObject(13, DataWatcherRegistry.b), prof);
+    }
+
+    public void setCustomName(String customName) {
+        entity.getDataWatcher().set(new DataWatcherObject(2, DataWatcherRegistry.f), Optional.of(new ChatComponentText(customName)));
     }
 
     /** Return true if npc moved upward */
-    public final boolean fightGravity() {
+    public boolean fightGravity() {
         if (isBlockedAt(location) || location.getBlock().isLiquid()) {
             location = location.add(0.0, 0.1, 0.0);
             return true;
@@ -427,8 +454,20 @@ public class NPC {
     }
 
     /** Return true if npc moved downward */
-    public final boolean fall() {
-        for (int i = 0; i < 6; i += 1) {
+    public boolean fall() {
+        double y = location.getY() % 1.0;
+        if (y < 0.0) y += 1.0;
+        if (y > 0.0) {
+            Location downward = location.clone();
+            downward.setY(Math.floor(location.getY()));
+            Location below = downward.clone().add(0, -0.1, 0);
+            if (!isBlockedAt(downward) && isBlockedAt(below)) {
+                location = downward;
+                onGround = false;
+                return true;
+            }
+        }
+        for (int i = 0; i < 5; i += 1) {
             Location downward = location.clone().add(0.0, -0.1, 0.0);
             if (!isBlockedAt(downward)) {
                 location = downward;
@@ -441,7 +480,7 @@ public class NPC {
         return true;
     }
 
-    public final boolean walkForward() {
+    public boolean walkForward() {
         Vector vec = location.getDirection();
         vec.setY(0.0);
         vec = vec.normalize();
@@ -452,16 +491,63 @@ public class NPC {
         }
         Location forward = location.clone().add(vec);
         if (!isBlockedAt(forward)) {
-            location = forward;
-            return true;
+            if (onGround) {
+                // Some heuristic fall checks
+                org.bukkit.block.Block downward = forward.getBlock().getRelative(0, -1, 0);
+                if (downward.isLiquid()) return false;
+                if (downward.isEmpty()) {
+                    downward = downward.getRelative(0, -1, 0);
+                    if (downward.isLiquid()) return false;
+                    if (downward.isEmpty()) return false;
+                }
+            }
+            if (canWalkFromTo(location, forward)) {
+                location = forward;
+                return true;
+            } else {
+                return false;
+            }
         } else if (!isBlockedAt(forward.add(0.0, 0.5, 0.0))) {
-            location = forward;
-            return true;
+            if (canWalkFromTo(location, forward)) {
+                location = forward;
+                return true;
+            } else {
+                return false;
+            }
+        } else if (!isBlockedAt(forward.add(0.0, 0.5, 0.0))) {
+            if (canWalkFromTo(location, forward)) {
+                location = forward;
+                onGround = false;
+                forceTeleport = true;
+                return true;
+            } else {
+                return false;
+            }
         }
         return false;
     }
 
-    public final void updateMovement() {
+    boolean canWalkFromTo(Location from, Location to) {
+        if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) return true;
+        double width2 = (double)entity.width * 0.5;
+        Location a = to.clone().add(-width2, 0.0, -width2);
+        Location b = to.clone().add(width2, 0.0, width2);
+        final int y = to.getBlockY();
+        final int ax = a.getBlockX();
+        final int bx = b.getBlockX();
+        final int az = a.getBlockZ();
+        final int bz = b.getBlockZ();
+        for (int z = az; z <= bz; z += 1) {
+            for (int x = ax; x <= bx; x += 1) {
+                org.bukkit.block.Block block = to.getWorld().getBlockAt(x, y, z);
+                if (!api.canWalkIn(block)) return false;
+                if (!api.canWalkOn(block.getRelative(0, -1, 0))) return false;
+            }
+        }
+        return true;
+    }
+
+    public void updateMovement() {
         switch (type) {
         case PLAYER: case MOB: case BLOCK:
             boolean didMove =
@@ -481,14 +567,15 @@ public class NPC {
                 }
             }
             boolean didMoveHead = headYaw != lastHeadYaw;
-            boolean doTeleport = false;
             double distance = lastLocation.distanceSquared(location);
-            doTeleport |= ticksLived == 0;
-            doTeleport |= didMove && distance >= 64;
-            doTeleport |= locationError >= 0.125;
-            doTeleport |= locationMoved > 1024.0;
-            doTeleport |= !didMove && locationMoved > 16.0;
+            boolean doTeleport = forceTeleport
+                || ticksLived == 0
+                || didMove && distance >= 64
+                || locationError >= 0.125
+                || locationMoved > 1024.0
+                || !didMove && locationMoved > 16.0;
             if (doTeleport) {
+                forceTeleport = false;
                 entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
                 packets.add(new PacketPlayOutEntityTeleport(entity));
                 trackLocation = location.clone();
@@ -536,7 +623,7 @@ public class NPC {
         lastLocation = location.clone();
     }
 
-    public final void updateWatchers() {
+    public void updateWatchers() {
         Set<UUID> watcherIds = new HashSet<>();
         for (Iterator<Player> iter = playerWatchers.iterator(); iter.hasNext();) {
             Player player = iter.next();
@@ -553,13 +640,23 @@ public class NPC {
                 iter.remove();
                 continue;
             }
+            // Update scoreboard if necessary
+            if (type == Type.PLAYER) {
+                Scoreboard scoreboard = player.getScoreboard();
+                Team team = scoreboard.getTeam(TEAM_NAME);
+                if (team == null) {
+                    team = scoreboard.registerNewTeam(TEAM_NAME);
+                    team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+                }
+                if (!team.hasEntry(name)) team.addEntry(name);
+            }
             // Send packets
             PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
             for (Packet packet: packets) {
                 connection.sendPacket(packet);
             }
-            packets.clear();
         }
+        packets.clear();
         // Find new players
         for (Player player: location.getWorld().getPlayers()) {
             if (!watcherIds.contains(player.getUniqueId())

@@ -103,7 +103,6 @@ final class SpawnArea {
             int x = (chunk.getX() << 4) + random.nextInt(16);
             int z = (chunk.getZ() << 4) + random.nextInt(16);
             Block block = bWorld.getHighestBlockAt(x, z);
-            if (block.getY() > 47) block = bWorld.getBlockAt(block.getX(), 47, block.getZ());
             while (block.getY() >= 32 && !canSpawnAt(block)) block = block.getRelative(0, -1, 0);
             if (block.getY() < 32) continue;
             if (!Tag.STONE_BRICKS.isTagged(block.getRelative(0, -1, 0).getType())) continue;
@@ -177,6 +176,7 @@ final class SpawnArea {
             if (plugin.enableNPC(npc)) {
                 this.npcs.add(npc);
             }
+            return;
         }
     }
 

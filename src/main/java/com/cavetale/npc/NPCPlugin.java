@@ -28,7 +28,6 @@ public final class NPCPlugin extends JavaPlugin {
     @Getter private static NPCPlugin instance;
     private SpawnArea spawnArea;
     @Getter private final List<PlayerSkin> playerSkins = new ArrayList<>();
-    private int resendSkinIndex;
     private long ticksLived;
 
     @Override
@@ -194,15 +193,6 @@ public final class NPCPlugin extends JavaPlugin {
     }
 
     void onTick() {
-        if (!npcs.isEmpty() && (ticksLived % 10L) == 0L) {
-            while (resendSkinIndex < npcs.size() && npcs.get(resendSkinIndex).getType() != NPC.Type.PLAYER) resendSkinIndex += 1;
-            if (resendSkinIndex < npcs.size()) {
-                npcs.get(resendSkinIndex).setResendSkin(true);
-                resendSkinIndex += 1;
-            } else {
-                resendSkinIndex = 0;
-            }
-        }
         for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
             NPC npc = iter.next();
             if (npc.isValid()) {

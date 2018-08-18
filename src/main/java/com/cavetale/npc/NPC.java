@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import net.minecraft.server.v1_13_R1.Block;
 import net.minecraft.server.v1_13_R1.ChatComponentText;
@@ -75,10 +76,10 @@ public final class NPC {
     private org.bukkit.block.data.BlockData blockData; // Only for BLOCK
     private PlayerSkin playerSkin;
     // State
-    private final List<Player> playerWatchers = new ArrayList<>();
+    private final List<Watcher> watchers = new ArrayList<>();
     private final List<Packet> packets = new ArrayList<>();
     private long ticksLived;
-    @Setter private boolean resendSkin;
+    @Setter private boolean removeWhenUnwatched;
     // Job
     @Setter private Job job;
     @Setter private API api = () -> { };
@@ -91,6 +92,14 @@ public final class NPC {
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
 
+    @RequiredArgsConstructor
+    static class Watcher {
+        final Player player;
+        final List<Packet> packets = new ArrayList<>();
+        long ticksLived;
+        long setPlayerSkin = -1;
+        long unsetPlayerSkin = -1;
+    }
     enum Type {
         PLAYER, MOB, BLOCK;
     }
@@ -215,11 +224,11 @@ public final class NPC {
     }
 
     void disable() {
-        for (Player player: playerWatchers) {
-            if (!player.isValid()) continue;
-            stopPlayerWatch(player);
+        for (Watcher watcher: watchers) {
+            if (!watcher.player.isValid()) continue;
+            stopWatch(watcher);
         }
-        playerWatchers.clear();
+        watchers.clear();
         valid = false;
         api.onDisable();
     }
@@ -236,16 +245,14 @@ public final class NPC {
         this.followLocation = null;
     }
 
-    void startPlayerWatch(Player player) {
-        PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
+    void startWatch(Watcher watcher) {
+        PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
         switch (type) {
         case PLAYER:
             connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
             connection.sendPacket(new PacketPlayOutNamedEntitySpawn((EntityPlayer)entity));
-            connection.sendPacket(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
-            Bukkit.getScheduler().runTaskLater(NPCPlugin.getInstance(), () ->
-                                               connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity)), 5L);
-            Scoreboard scoreboard = player.getScoreboard();
+            watcher.setPlayerSkin = 0;
+            Scoreboard scoreboard = watcher.player.getScoreboard();
             Team team = scoreboard.getTeam(TEAM_NAME);
             if (team == null) {
                 team = scoreboard.registerNewTeam(TEAM_NAME);
@@ -266,10 +273,11 @@ public final class NPC {
         }
     }
 
-    void stopPlayerWatch(Player player) {
-        PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
+    void stopWatch(Watcher watcher) {
+        PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
         switch (type) {
         case PLAYER:
+            connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
             connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
             break;
         case MOB:
@@ -305,11 +313,11 @@ public final class NPC {
                         && entityLocation.getY() - (double)y >= 0.5) {
                         continue;
                     }
-                    if (Tag.STAIRS.isTagged(mat)
-                        && ((Stairs)block.getBlockData()).getHalf() == Bisected.Half.BOTTOM
-                        && entityLocation.getY() - (double)y >= 0.5) {
-                        continue;
-                    }
+                    // if (Tag.STAIRS.isTagged(mat)
+                    //     && ((Stairs)block.getBlockData()).getHalf() == Bisected.Half.BOTTOM
+                    //     && entityLocation.getY() - (double)y >= 0.5) {
+                    //     continue;
+                    // }
                     if (mat.isOccluding()) return true;
                     if (mat.isSolid()) return true;
                 }
@@ -323,12 +331,6 @@ public final class NPC {
         if (job != null) performJob();
         updateMovement();
         updateWatchers();
-        if (resendSkin && type == Type.PLAYER) {
-            resendSkin = false;
-            packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
-            Bukkit.getScheduler().runTaskLater(NPCPlugin.getInstance(), () ->
-                                               packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity)), 10L);
-        }
         ticksLived += 1;
     }
 
@@ -336,81 +338,30 @@ public final class NPC {
         switch (job) {
         case NONE: return;
         case WANDER:
-            if (task == Task.WALK) {
-                if (turn <= 0) {
+            if (turn <= 0) {
+                switch (task) {
+                case WALK:
+                    if (ThreadLocalRandom.current().nextBoolean()) {
+                        task = Task.LOOK_AROUND;
+                        turn = 100;
+                    } else {
+                        task = Task.TURN;
+                        turn = 20 + ThreadLocalRandom.current().nextInt(20);
+                        direction = ThreadLocalRandom.current().nextBoolean() ? -1 : 1;
+                        speed = 2.5 + ThreadLocalRandom.current().nextDouble() * 5.0;
+                    }
+                    break;
+                case LOOK_AROUND:
+                case TURN:
+                default:
+                    task = Task.WALK;
+                    turn = 20 + ThreadLocalRandom.current().nextInt(100);
                     direction = ThreadLocalRandom.current().nextFloat() * 4.0f - 2.0f;
                     speed = Math.max(0.25, ThreadLocalRandom.current().nextDouble());
-                    turn = 20 + ThreadLocalRandom.current().nextInt(100);
-                } else if (turn == 1) {
-                    if (ThreadLocalRandom.current().nextBoolean()) {
-                        setTask(Task.LOOK_AROUND);
-                    } else {
-                        setTask(Task.TURN);
-                    }
-                } else {
-                    turn -= 1;
                 }
-                boolean didMoveUp = fightGravity();
-                boolean didFall = didMoveUp ? false : fall();
-                boolean didWalk = didMoveUp ? false : walkForward();
-                if (onGround) {
-                    if (didWalk) {
-                        location.setYaw(location.getYaw() + (float)direction);
-                        headYaw = (double)location.getYaw();
-                        if (turn % 16 == 0) {
-                            location.setPitch(ThreadLocalRandom.current().nextFloat() * 0.30f);
-                        }
-                    } else {
-                        setTask(Task.TURN);
-                    }
-                }
-            } else if (task == Task.TURN) {
-                if (turn <= 0) {
-                    turn = 20 + ThreadLocalRandom.current().nextInt(20);
-                    direction = ThreadLocalRandom.current().nextBoolean() ? -1 : 1;
-                    speed = 2.5 + ThreadLocalRandom.current().nextDouble() * 5.0;
-                } else if (turn == 1) {
-                    setTask(Task.WALK);
-                } else {
-                    turn -= 1;
-                }
-                if (!fightGravity() && !fall()) {
-                    headYaw = headYaw + direction * speed;
-                    location.setYaw((float)headYaw);
-                }
-            } else if (task == Task.LOOK_AROUND) {
-                if (turn <= 0) {
-                    turn = 100;
-                } else if (turn == 1) {
-                    setTask(Task.WALK);
-                } else {
-                    turn -= 1;
-                }
-                fightGravity();
-                fall();
-                if (turn % 16 == 0) lookRandom();
-            } else if (task == Task.LOOK_AT) {
-                if (followEntity == null) {
-                    setTask(Task.LOOK_AROUND);
-                    return;
-                }
-                boolean didMoveVertical = fightGravity() || fall();
-                location.setDirection(followEntity.getEyeLocation().subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
-                headYaw = location.getYaw();
-                forceLookUpdate = true;
-            } else if (task == Task.FOLLOW) {
-                if (followEntity == null) {
-                    setTask(Task.LOOK_AROUND);
-                    return;
-                }
-                boolean didMoveVertical = fightGravity() || fall();
-                location.setDirection(followEntity.getEyeLocation().subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
-                headYaw = location.getYaw();
-                forceLookUpdate = true;
-                if (!didMoveVertical && followEntity.getLocation().distanceSquared(location) >= 4.0) walkForward();
-            } else {
-                setTask(Task.WALK);
             }
+            performTask();
+            turn -= 1;
             break;
         case WIGGLE:
             if (turn <= 0) {
@@ -422,6 +373,61 @@ public final class NPC {
             break;
         default:
             throw new IllegalStateException("Unhandled Job: " + job);
+        }
+    }
+
+    public void performTask() {
+        switch (task) {
+        case WALK:
+            boolean didMoveUp = fightGravity();
+            boolean didFall = didMoveUp ? false : fall();
+            boolean didWalk = didMoveUp ? false : walkForward();
+            if (onGround) {
+                if (didWalk) {
+                    location.setYaw(location.getYaw() + (float)direction);
+                    headYaw = (double)location.getYaw();
+                    if (turn % 16 == 0) {
+                        location.setPitch(ThreadLocalRandom.current().nextFloat() * 0.30f);
+                    }
+                } else {
+                    turn = 0;
+                }
+            }
+            break;
+        case TURN:
+            if (!fightGravity() && !fall()) {
+                headYaw = headYaw + direction * speed;
+                location.setYaw((float)headYaw);
+            }
+            break;
+        case LOOK_AROUND:
+            if (!fightGravity() && !fall() && (turn % 16) == 0) {
+                lookRandom();
+            }
+            break;
+        case LOOK_AT:
+            if (followEntity == null) {
+                turn = 0;
+                return;
+            }
+            boolean didMoveVertical = fightGravity() || fall();
+            location.setDirection(followEntity.getEyeLocation().subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
+            headYaw = location.getYaw();
+            forceLookUpdate = true;
+            break;
+        case FOLLOW:
+            if (followEntity == null) {
+                turn = 0;
+                return;
+            }
+            didMoveVertical = fightGravity() || fall();
+            location.setDirection(followEntity.getEyeLocation().subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
+            headYaw = location.getYaw();
+            forceLookUpdate = true;
+            if (!didMoveVertical && followEntity.getLocation().distanceSquared(location) >= 4.0) walkForward();
+            break;
+        default:
+            throw new IllegalStateException("Unhandled Task: " + task);
         }
     }
 
@@ -625,24 +631,24 @@ public final class NPC {
 
     public void updateWatchers() {
         Set<UUID> watcherIds = new HashSet<>();
-        for (Iterator<Player> iter = playerWatchers.iterator(); iter.hasNext();) {
-            Player player = iter.next();
+        for (Iterator<Watcher> iter = watchers.iterator(); iter.hasNext();) {
+            Watcher watcher = iter.next();
             // Weed out players
             // Note: We are adding even players which will have been removed
-            watcherIds.add(player.getUniqueId());
-            if (!player.isValid()) {
+            watcherIds.add(watcher.player.getUniqueId());
+            if (!watcher.player.isValid()) {
                 iter.remove();
                 continue;
             }
-            if (!player.getWorld().equals(location.getWorld())
-                || player.getLocation().distanceSquared(location) > 16384.0) { // 128^2
-                stopPlayerWatch(player);
+            if (!watcher.player.getWorld().equals(location.getWorld())
+                || watcher.player.getLocation().distanceSquared(location) > 16384.0) { // 128^2
+                stopWatch(watcher);
                 iter.remove();
                 continue;
             }
             // Update scoreboard if necessary
             if (type == Type.PLAYER) {
-                Scoreboard scoreboard = player.getScoreboard();
+                Scoreboard scoreboard = watcher.player.getScoreboard();
                 Team team = scoreboard.getTeam(TEAM_NAME);
                 if (team == null) {
                     team = scoreboard.registerNewTeam(TEAM_NAME);
@@ -651,20 +657,35 @@ public final class NPC {
                 if (!team.hasEntry(name)) team.addEntry(name);
             }
             // Send packets
-            PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
+            PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
+            if (watcher.setPlayerSkin == watcher.ticksLived) {
+                watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20);
+                watcher.unsetPlayerSkin = watcher.ticksLived + 5L;
+                packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
+            }
+            if (watcher.unsetPlayerSkin == watcher.ticksLived) {
+                watcher.unsetPlayerSkin = -1;
+                packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
+            }
+            for (Packet packet: watcher.packets) {
+                connection.sendPacket(packet);
+            }
+            watcher.packets.clear();
             for (Packet packet: packets) {
                 connection.sendPacket(packet);
             }
+            watcher.ticksLived += 1;
         }
         packets.clear();
         // Find new players
         for (Player player: location.getWorld().getPlayers()) {
             if (!watcherIds.contains(player.getUniqueId())
                 && player.getLocation().distanceSquared(location) < 16384.0) { // 128^2
-                startPlayerWatch(player);
-                playerWatchers.add(player);
+                Watcher watcher = new Watcher(player);
+                startWatch(watcher);
+                watchers.add(watcher);
             }
         }
-        if (playerWatchers.isEmpty()) valid = false;
+        if (watchers.isEmpty() && removeWhenUnwatched) valid = false;
     }
 }

@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -19,6 +20,7 @@ import net.minecraft.server.v1_13_R1.DataWatcherObject;
 import net.minecraft.server.v1_13_R1.DataWatcherRegistry;
 import net.minecraft.server.v1_13_R1.Entity;
 import net.minecraft.server.v1_13_R1.EntityFallingBlock;
+import net.minecraft.server.v1_13_R1.EntityItem;
 import net.minecraft.server.v1_13_R1.EntityLiving;
 import net.minecraft.server.v1_13_R1.EntityPlayer;
 import net.minecraft.server.v1_13_R1.EntityTypes;
@@ -30,6 +32,7 @@ import net.minecraft.server.v1_13_R1.PacketPlayOutEntityDestroy;
 import net.minecraft.server.v1_13_R1.PacketPlayOutEntityHeadRotation;
 import net.minecraft.server.v1_13_R1.PacketPlayOutEntityMetadata;
 import net.minecraft.server.v1_13_R1.PacketPlayOutEntityTeleport;
+import net.minecraft.server.v1_13_R1.PacketPlayOutEntityVelocity;
 import net.minecraft.server.v1_13_R1.PacketPlayOutNamedEntitySpawn;
 import net.minecraft.server.v1_13_R1.PacketPlayOutPlayerInfo;
 import net.minecraft.server.v1_13_R1.PacketPlayOutSpawnEntity;
@@ -40,14 +43,12 @@ import net.minecraft.server.v1_13_R1.WorldServer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Tag;
-import org.bukkit.block.data.Bisected;
 import org.bukkit.block.data.type.Slab;
-import org.bukkit.block.data.type.Stairs;
 import org.bukkit.craftbukkit.v1_13_R1.CraftServer;
 import org.bukkit.craftbukkit.v1_13_R1.CraftWorld;
 import org.bukkit.craftbukkit.v1_13_R1.block.data.CraftBlockData;
 import org.bukkit.craftbukkit.v1_13_R1.entity.CraftPlayer;
-import org.bukkit.craftbukkit.v1_13_R1.util.CraftMagicNumbers;
+import org.bukkit.craftbukkit.v1_13_R1.inventory.CraftItemStack;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -65,7 +66,7 @@ public final class NPC {
     @Setter private Location location;
     @Setter private double headYaw;
     private double lastHeadYaw;
-    private Location lastLocation, trackLocation;
+    private Location lastLocation, trackLocation, fromLocation, toLocation;
     private double locationError = 0.0, locationMoved = 0.0;
     private boolean forceLookUpdate, forceTeleport;
     @Setter private boolean onGround;
@@ -77,15 +78,16 @@ public final class NPC {
     private PlayerSkin playerSkin;
     // State
     private final List<Watcher> watchers = new ArrayList<>();
-    private final List<Packet> packets = new ArrayList<>();
+    private final ScheduledPacketList packets = new ScheduledPacketList();
     private long ticksLived;
+    private long lastInteract;
     @Setter private boolean removeWhenUnwatched;
     // Job
     @Setter private Job job;
     @Setter private API api = () -> { };
     // Task
     private Task task;
-    private int turn; // Countdown for current task duration
+    private int turn, turnTotal; // Countdown for current task duration
     private double speed, direction;
     private LivingEntity followEntity;
     private Location followLocation;
@@ -93,21 +95,73 @@ public final class NPC {
     private static final String TEAM_NAME = "cavetale.npc";
 
     @RequiredArgsConstructor
-    static class Watcher {
+    class Watcher {
         final Player player;
-        final List<Packet> packets = new ArrayList<>();
+        final ScheduledPacketList packets = new ScheduledPacketList();
         long ticksLived;
         long setPlayerSkin = -1;
         long unsetPlayerSkin = -1;
     }
-    enum Type {
-        PLAYER, MOB, BLOCK;
+
+    @RequiredArgsConstructor
+    static class ScheduledPacket {
+        final Packet packet;
+        final long tick;
     }
+
+    class ScheduledPacketList {
+        final List<ScheduledPacket> packets = new ArrayList<>();
+        void add(Packet packet, long delay) {
+            ScheduledPacket entry = new ScheduledPacket(packet, ticksLived + delay);
+            ListIterator<ScheduledPacket> iter = packets.listIterator();
+            while (true) {
+                if (!iter.hasNext()) {
+                    iter.add(entry);
+                    break;
+                } else if (iter.next().tick > entry.tick) {
+                    iter.previous();
+                    iter.add(entry);
+                    break;
+                }
+            }
+        }
+        void add(Packet packet) {
+            add(packet, 0L);
+        }
+        Packet deal() {
+            if (packets.isEmpty()) return null;
+            ScheduledPacket result = packets.get(0);
+            if (result.tick > ticksLived) return null;
+            packets.remove(0);
+            return result.packet;
+        }
+    }
+
+    enum Type {
+        PLAYER, MOB, BLOCK, ITEM;
+    }
+
     enum Job {
         NONE, WANDER, WIGGLE;
     }
+
     enum Task {
         NONE, WALK, TURN, LOOK_AROUND, LOOK_AT, FOLLOW;
+    }
+
+    public enum EntityFlag {
+        ON_FIRE(0x01),
+        CROUCHING(0x02),
+        //RIDING(0x04),
+        SPRINTING(0x08),
+        //HAND(0x10),
+        INVISIBLE(0x20),
+        GLOWING(0x40),
+        FLYING_ELYTRA(0x80);
+        public final int bitMask;
+        EntityFlag(int bitMask) {
+            this.bitMask = bitMask;
+        }
     }
 
     public NPC(Type type, Location location, String name, PlayerSkin playerSkin) {
@@ -186,6 +240,26 @@ public final class NPC {
         }
     }
 
+    public NPC(Type type, Location location, org.bukkit.inventory.ItemStack itemStack) {
+        this.type = type;
+        this.location = location;
+        final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
+        switch (type) {
+        case ITEM:
+            entity = new EntityItem(worldServer, location.getX(), location.getY(), location.getZ(), CraftItemStack.asNMSCopy(itemStack));
+            id = entity.getId();
+            name = entity.getUniqueID().toString().replace("-", "");
+            entity.motX = 0.0;
+            entity.motY = 0.0;
+            entity.motZ = 0.0;
+            // No gravity
+            entity.getDataWatcher().set(new DataWatcherObject(5, DataWatcherRegistry.i), Boolean.TRUE);
+            break;
+        default:
+            throw new IllegalArgumentException("NPC(Type, Location, ItemStack): wrong constructor for type " + type);
+        }
+    }
+
     // Overridable API methods
 
     public interface API {
@@ -233,7 +307,11 @@ public final class NPC {
         api.onDisable();
     }
 
-    public void interact(Player player) {
+    public void interact(Player player, boolean rightClick) {
+        if (lastInteract == ticksLived) return;
+        lastInteract = ticksLived;
+        setEntityFlag(EntityFlag.GLOWING, !getEntityFlag(EntityFlag.GLOWING));
+        sendMetadata();
     }
 
     void setTask(Task newTask) {
@@ -267,6 +345,12 @@ public final class NPC {
         case BLOCK:
             connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 70, Block.REGISTRY_ID.getId(((CraftBlockData)blockData).getState())));
             connection.sendPacket(new PacketPlayOutEntityMetadata(entity.getId(), entity.getDataWatcher(), true));
+            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
+            break;
+        case ITEM:
+            connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 2));
+            connection.sendPacket(new PacketPlayOutEntityMetadata(entity.getId(), entity.getDataWatcher(), true));
+            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
             break;
         default:
             throw new IllegalStateException("Unhandled type: " + type);
@@ -284,6 +368,9 @@ public final class NPC {
             connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
             break;
         case BLOCK:
+            connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
+            break;
+        case ITEM:
             connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
             break;
         default:
@@ -339,6 +426,7 @@ public final class NPC {
         case NONE: return;
         case WANDER:
             if (turn <= 0) {
+                if (task == null) task = Task.NONE;
                 switch (task) {
                 case WALK:
                     if (ThreadLocalRandom.current().nextBoolean()) {
@@ -366,10 +454,20 @@ public final class NPC {
         case WIGGLE:
             if (turn <= 0) {
                 if (followLocation == null) followLocation = location.clone();
+                fromLocation = followLocation.clone();
+                toLocation = followLocation.clone();
                 turn = 1;
+            } else if (turn == 1) {
+                fromLocation = toLocation;
+                toLocation = followLocation.clone().add(0.125 * Math.random(), 0.0, 0.125 * Math.random());
+                turnTotal = ThreadLocalRandom.current().nextInt(6) + 5;
+                turn = turnTotal;
+            } else {
+                double a = (double)turn / (double)turnTotal;
+                double b = 1.0 - a;
+                location = fromLocation.toVector().multiply(a).add(toLocation.toVector().multiply(b)).toLocation(location.getWorld());
+                turn -= 1;
             }
-            double linear = (double)ticksLived * 0.1;
-            location = followLocation.clone().add(0.125 * Math.cos(linear), 0.0, 0.125 * Math.sin(linear));
             break;
         default:
             throw new IllegalStateException("Unhandled Job: " + job);
@@ -440,6 +538,24 @@ public final class NPC {
 
     public void swingArm(boolean mainHand) {
         packets.add(new PacketPlayOutAnimation(entity, mainHand ? 0 : 3));
+    }
+
+    public boolean getEntityFlag(EntityFlag flag) {
+        return (((Byte)entity.getDataWatcher().get(new DataWatcherObject(0, DataWatcherRegistry.a))).intValue() & flag.bitMask) > 0;
+    }
+
+    public void setEntityFlag(EntityFlag flag, boolean value) {
+        int v = ((Byte)entity.getDataWatcher().get(new DataWatcherObject(0, DataWatcherRegistry.a))).intValue();
+        if (value) {
+            v |= flag.bitMask;
+        } else {
+            v &= ~flag.bitMask;
+        }
+        entity.getDataWatcher().set(new DataWatcherObject(0, DataWatcherRegistry.a), (byte)v);
+    }
+
+    public void sendMetadata() {
+        packets.add(new PacketPlayOutEntityMetadata(entity.getId(), entity.getDataWatcher(), false));
     }
 
     public void setVillagerProfession(int prof) {
@@ -555,7 +671,7 @@ public final class NPC {
 
     public void updateMovement() {
         switch (type) {
-        case PLAYER: case MOB: case BLOCK:
+        case PLAYER: case MOB: case BLOCK: case ITEM:
             boolean didMove =
                 location.getX() != lastLocation.getX()
                 || location.getY() != lastLocation.getY()
@@ -667,16 +783,15 @@ public final class NPC {
                 watcher.unsetPlayerSkin = -1;
                 packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
             }
-            for (Packet packet: watcher.packets) {
+            Packet packet;
+            while (null != (packet = watcher.packets.deal())) {
                 connection.sendPacket(packet);
             }
-            watcher.packets.clear();
-            for (Packet packet: packets) {
+            while (null != (packet = packets.deal())) {
                 connection.sendPacket(packet);
             }
             watcher.ticksLived += 1;
         }
-        packets.clear();
         // Find new players
         for (Player player: location.getWorld().getPlayers()) {
             if (!watcherIds.contains(player.getUniqueId())

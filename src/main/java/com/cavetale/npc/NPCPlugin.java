@@ -2,11 +2,13 @@ package com.cavetale.npc;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import lombok.Getter;
+import net.minecraft.server.v1_13_R1.PacketPlayInUseEntity;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -15,6 +17,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.inventivetalent.packetlistener.PacketListenerAPI;
 import org.inventivetalent.packetlistener.handler.PacketHandler;
@@ -49,8 +52,17 @@ public final class NPCPlugin extends JavaPlugin {
                         for (NPC npc: npcs) {
                             if (npc.getId() == id) {
                                 Player player = packet.getPlayer();
+                                PacketPlayInUseEntity ppiue = (PacketPlayInUseEntity)packet.getPacket();
+                                boolean rightClick;
+                                switch (ppiue.b()) {
+                                case INTERACT: case INTERACT_AT:
+                                    rightClick = true;
+                                    break;
+                                case ATTACK: default:
+                                    rightClick = false;
+                                }
                                 if (player != null) {
-                                    npc.interact(player);
+                                    npc.interact(player, rightClick);
                                 }
                                 break;
                             }
@@ -98,27 +110,31 @@ public final class NPCPlugin extends JavaPlugin {
     public boolean onCommand(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 0) return false;
         Player player = (Player)sender;
-        switch (args[0]) {
+        Iterator<String> argIter = Arrays.asList(args).iterator();
+        switch (argIter.next()) {
         case "spawn":
-            if (args.length >= 2) {
+            if (args.length >= 3) {
                 NPC npc;
                 Location location = player.getLocation();
                 location.setPitch(0.0f);
-                switch (args[1]) {
+                switch (argIter.next()) {
                 case "player":
-                    npc = new NPC(NPC.Type.PLAYER, location, args[2], null);
+                    npc = new NPC(NPC.Type.PLAYER, location, argIter.next(), null);
                     break;
                 case "mob":
-                    npc = new NPC(NPC.Type.MOB, location, EntityType.valueOf(args[2].toUpperCase()));
+                    npc = new NPC(NPC.Type.MOB, location, EntityType.valueOf(argIter.next().toUpperCase()));
                     break;
                 case "block":
-                    npc = new NPC(NPC.Type.BLOCK, location, getServer().createBlockData(args[2]));
+                    npc = new NPC(NPC.Type.BLOCK, location, getServer().createBlockData(argIter.next()));
+                    break;
+                case "item":
+                    npc = new NPC(NPC.Type.ITEM, location, new ItemStack(Material.valueOf(argIter.next().toUpperCase()), argIter.hasNext() ? Integer.parseInt(argIter.next()) : 1));
                     break;
                 default:
                     return false;
                 }
-                if (args.length >= 4) {
-                    npc.setJob(NPC.Job.valueOf(args[3].toUpperCase()));
+                if (argIter.hasNext()) {
+                    npc.setJob(NPC.Job.valueOf(argIter.next().toUpperCase()));
                 }
                 try {
                     npc.enable();

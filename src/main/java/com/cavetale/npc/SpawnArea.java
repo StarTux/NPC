@@ -108,19 +108,19 @@ final class SpawnArea {
             if (!Tag.STONE_BRICKS.isTagged(block.getRelative(0, -1, 0).getType())) continue;
             Location location = block.getLocation().add(0.5, 0.0, 0.5);
             final NPC npc;
-            if (random.nextBoolean()) {
+            if (random.nextInt(3) > 0) {
                 int skinIndex = random.nextInt(plugin.getPlayerSkins().size());
                 PlayerSkin playerSkin = plugin.getPlayerSkins().get(skinIndex);
                 npc = new NPC(NPC.Type.PLAYER, location, "" + random.nextInt(), playerSkin);
-                if (npc.isBlockedAt(location)) {
-                    continue;
-                }
+                npc.setJob(random.nextBoolean() ? NPC.Job.DANCE : NPC.Job.WANDER);
             } else {
                 npc = new NPC(NPC.Type.MOB, location, EntityType.VILLAGER);
-                npc.setVillagerProfession(random.nextInt(6));
+                npc.setEntityData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));
+                npc.setJob(NPC.Job.WANDER);
             }
-            npc.setJob(NPC.Job.WANDER);
-            npc.setApi(new NPC.API() {
+            if (npc.isBlockedAt(location)) continue;
+            if (npc.collidesWithOther()) continue;
+            npc.setDelegate(new NPC.Delegate() {
                     @Override public void onTick() {
                     }
                     @Override public boolean canWalkIn(Block block) {
@@ -171,6 +171,8 @@ final class SpawnArea {
                         default:
                             return true;
                         }
+                    }
+                    @Override public void onInteract(Player player, boolean rightClick) {
                     }
                 });
             if (plugin.enableNPC(npc)) {

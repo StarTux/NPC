@@ -8,13 +8,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import lombok.Getter;
+import net.minecraft.server.v1_13_R1.BlockPosition;
 import net.minecraft.server.v1_13_R1.PacketPlayInUseEntity;
+import net.minecraft.server.v1_13_R1.PacketPlayOutOpenSignEditor;
+import net.minecraft.server.v1_13_R1.PlayerConnection;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.craftbukkit.v1_13_R1.entity.CraftPlayer;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -62,7 +66,7 @@ public final class NPCPlugin extends JavaPlugin {
                                     rightClick = false;
                                 }
                                 if (player != null) {
-                                    npc.interact(player, rightClick);
+                                    getServer().getScheduler().runTask(NPCPlugin.this, () -> npc.interact(player, rightClick));
                                 }
                                 break;
                             }
@@ -187,6 +191,15 @@ public final class NPCPlugin extends JavaPlugin {
                 spawnArea.exportConfig(getConfig().getConfigurationSection("spawn"));
                 saveConfig();
                 sender.sendMessage("Chunk added to spawn area");
+                return true;
+            }
+            break;
+        case "sign":
+            if (args.length == 1) {
+                PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
+                Location loc = player.getLocation();
+                player.sendBlockChange(loc, Material.SIGN.createBlockData());
+                connection.sendPacket(new PacketPlayOutOpenSignEditor(new BlockPosition(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())));
                 return true;
             }
             break;

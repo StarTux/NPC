@@ -23,6 +23,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.util.Vector;
 import org.inventivetalent.packetlistener.PacketListenerAPI;
 import org.inventivetalent.packetlistener.handler.PacketHandler;
 import org.inventivetalent.packetlistener.handler.ReceivedPacket;
@@ -134,6 +135,12 @@ public final class NPCPlugin extends JavaPlugin {
                 case "item":
                     npc = new NPC(NPC.Type.ITEM, location, new ItemStack(Material.valueOf(argIter.next().toUpperCase()), argIter.hasNext() ? Integer.parseInt(argIter.next()) : 1));
                     break;
+                case "marker":
+                    long lifespan = Long.parseLong(argIter.next());
+                    StringBuilder sb = new StringBuilder(argIter.next());
+                    while (argIter.hasNext()) sb.append(" ").append(argIter.next());
+                    npc = new NPC(NPC.Type.MARKER, location, sb.toString(), lifespan);
+                    break;
                 default:
                     return false;
                 }
@@ -167,6 +174,32 @@ public final class NPCPlugin extends JavaPlugin {
                     sender.sendMessage(i + ") " + location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ());
                 }
                 sender.sendMessage("Total: " + npcs.size());
+                return true;
+            } else if (args.length == 2) {
+                int radius = Integer.parseInt(args[1]);
+                Location playerLocation = player.getLocation();
+                int x = playerLocation.getBlockX();
+                int y = playerLocation.getBlockY();
+                int z = playerLocation.getBlockZ();
+                List<NPC> result = new ArrayList<>();
+                for (NPC npc: npcs) {
+                    if (Math.abs(npc.getLocation().getBlockX() - x) <= radius
+                        && Math.abs(npc.getLocation().getBlockY() - y) <= radius
+                        && Math.abs(npc.getLocation().getBlockZ() - z) <= radius) {
+                        result.add(npc);
+                    }
+                }
+                sender.sendMessage("" + result.size() + " NPCs within radius " + radius);
+                int index = 0;
+                for (NPC npc: result) {
+                    sender.sendMessage("" + index + ") " + npc.getDescription());
+                    NPC marker = new NPC(NPC.Type.MARKER, npc.getHeadLocation(), "#" + npc.getId(), 60L);
+                    marker.getExclusive().add(player.getUniqueId());
+                    marker.setFollowNPC(npc);
+                    marker.setFollowOffset(new Vector(0.0, npc.getEntity().length, 0.0));
+                    enableNPC(marker);
+                    index += 1;
+                }
                 return true;
             }
             break;

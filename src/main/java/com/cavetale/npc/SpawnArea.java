@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Value;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -111,11 +112,15 @@ final class SpawnArea {
             if (random.nextInt(3) > 0) {
                 int skinIndex = random.nextInt(plugin.getPlayerSkins().size());
                 PlayerSkin playerSkin = plugin.getPlayerSkins().get(skinIndex);
-                npc = new NPC(NPC.Type.PLAYER, location, "" + random.nextInt(), playerSkin);
-                npc.setJob(random.nextBoolean() ? NPC.Job.DANCE : NPC.Job.WANDER);
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < 8; i += 1) {
+                    sb.append(ChatColor.values()[random.nextInt(ChatColor.values().length)]);
+                }
+                npc = new NPC(NPC.Type.PLAYER, location, sb.toString(), playerSkin);
+                npc.setJob(random.nextInt(5) == 0 ? NPC.Job.DANCE : NPC.Job.WANDER);
             } else {
                 npc = new NPC(NPC.Type.MOB, location, EntityType.VILLAGER);
-                npc.setEntityData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));
+                npc.setData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));
                 npc.setJob(NPC.Job.WANDER);
             }
             if (npc.isBlockedAt(location)) continue;
@@ -123,7 +128,7 @@ final class SpawnArea {
             npc.setDelegate(new NPC.Delegate() {
                     @Override public void onTick() {
                     }
-                    @Override public boolean canWalkIn(Block block) {
+                    @Override public boolean canMoveIn(Block block) {
                         switch (block.getType()) {
                         case GRASS:
                         case WHEAT:
@@ -142,7 +147,7 @@ final class SpawnArea {
                             return true;
                         }
                     }
-                    @Override public boolean canWalkOn(Block block) {
+                    @Override public boolean canMoveOn(Block block) {
                         Material mat = block.getType();
                         if (Tag.LEAVES.isTagged(mat)) return false;
                         if (Tag.LOGS.isTagged(mat)) return false;
@@ -172,7 +177,8 @@ final class SpawnArea {
                             return true;
                         }
                     }
-                    @Override public void onInteract(Player player, boolean rightClick) {
+                    @Override public boolean onInteract(Player player, boolean rightClick) {
+                        return true;
                     }
                 });
             if (plugin.enableNPC(npc)) {

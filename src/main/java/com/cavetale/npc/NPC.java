@@ -751,7 +751,12 @@ public final class NPC {
     public void interact(Player player, boolean rightClick) {
         if (lastInteract == ticksLived) return;
         lastInteract = ticksLived;
-        delegate.onInteract(player, rightClick);
+        Watcher watcher = watchers.get(player.getUniqueId());
+        if (watcher == null) return;
+        boolean res = delegate.onInteract(player, rightClick);
+        if (type == Type.PLAYER) {
+            if (watcher.unsetPlayerSkin < 0) watcher.setPlayerSkin = watcher.ticksLived;
+        }
     }
 
     private void startWatch(Watcher watcher) {
@@ -1189,24 +1194,25 @@ public final class NPC {
             vec = vec.multiply(movementSpeed * 0.01);
         }
         Location forward = location.clone().add(vec);
-        boolean isBlocked = isBlockedAt(forward);
+        boolean collides = collidesWithOther();
+        boolean isBlocked = isBlockedAt(forward) || (!collides && collidesWithOtherAt(forward));
         if (isBlocked) {
             Location forwardStep = forward.clone().add(0.0, 0.5, 0.0);
-            if (!isBlockedAt(forwardStep)) {
+            if (!isBlockedAt(forwardStep) && (collides || !collidesWithOtherAt(forwardStep))) {
                 forward = forwardStep;
                 isBlocked = false;
             }
         }
         if (isBlocked) {
             Location forwardJump = forward.clone().add(0.0, 1.0, 0.0);
-            if (!isBlockedAt(forwardJump)) {
+            if (!isBlockedAt(forwardJump) && (collides || !collidesWithOtherAt(forwardJump))) {
                 forward = forwardJump;
                 isBlocked = false;
             }
         }
         if (isBlocked) {
             Location forwardX = location.clone().add(vec.getX(), 0.0, 0.0);
-            if (!isBlockedAt(forwardX)) {
+            if (!isBlockedAt(forwardX) && (collides || !collidesWithOtherAt(forwardX))) {
                 forward = forwardX;
                 isBlocked = false;
             }
@@ -1214,7 +1220,7 @@ public final class NPC {
         if (isBlocked) {
             Location forwardZ = location.clone();
             forwardZ = forwardZ.add(0.0, 0.0, vec.getZ());
-            if (!isBlockedAt(forwardZ)) {
+            if (!isBlockedAt(forwardZ) && (collides || !collidesWithOtherAt(forwardZ))) {
                 forward = forwardZ;
                 isBlocked = false;
             }
@@ -1354,6 +1360,7 @@ public final class NPC {
                 iter.remove();
                 continue;
             }
+            PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
             // Update scoreboard if necessary
             if (type == Type.PLAYER) {
                 Scoreboard scoreboard = watcher.player.getScoreboard();
@@ -1363,18 +1370,18 @@ public final class NPC {
                     team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
                 }
                 if (!team.hasEntry(name)) team.addEntry(name);
+                // Update skin every now and then
+                if (watcher.setPlayerSkin == watcher.ticksLived) {
+                    watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20);
+                    watcher.unsetPlayerSkin = watcher.ticksLived + 4L;
+                    packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
+                }
+                if (watcher.unsetPlayerSkin == watcher.ticksLived) {
+                    watcher.unsetPlayerSkin = -1;
+                    packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
+                }
             }
-            // Send packets
-            PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
-            if (watcher.setPlayerSkin == watcher.ticksLived) {
-                watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20);
-                watcher.unsetPlayerSkin = watcher.ticksLived + 4L;
-                packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
-            }
-            if (watcher.unsetPlayerSkin == watcher.ticksLived) {
-                watcher.unsetPlayerSkin = -1;
-                packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
-            }
+            // Send scheduled packets
             Packet packet;
             while (null != (packet = watcher.packets.deal())) {
                 connection.sendPacket(packet);
@@ -1407,17 +1414,29 @@ public final class NPC {
     }
 
     public boolean collidesWithOtherAt(Location at) {
-        if (chunkLocation == null) updateChunkLocation();
-        for (NPC other: GLOBAL_CACHE.getNPCsIn(chunkLocation)) {
-            if (other != this) {
-                double x = other.location.getX() - at.getX();
-                double y = other.location.getY() - at.getY();
-                double z = other.location.getZ() - at.getZ();
-                double width = other.entity.width * 0.5 + entity.width * 0.5;
-                if (Math.abs(x) > width) continue;
-                if (Math.abs(z) > width) continue;
-                if (y > entity.length || y < -other.entity.length) continue;
-                return true;
+        List<Chunk> chunks = new ArrayList<>();
+        Chunk mainChunk = at.getChunk();
+        chunks.add(mainChunk);
+        int cx = at.getBlockX() % 16;
+        int cz = at.getBlockZ() % 16;
+        if (cx < 0) cx += 16;
+        if (cz < 0) cz += 16;
+        if (cx == 0) chunks.add(mainChunk.getWorld().getChunkAt(mainChunk.getX() - 1, mainChunk.getZ()));
+        if (cx == 15) chunks.add(mainChunk.getWorld().getChunkAt(mainChunk.getX() + 1, mainChunk.getZ()));
+        if (cz == 0) chunks.add(mainChunk.getWorld().getChunkAt(mainChunk.getX(), mainChunk.getZ() - 1));
+        if (cz == 15) chunks.add(mainChunk.getWorld().getChunkAt(mainChunk.getX(), mainChunk.getZ() + 1));
+        for (Chunk chunk: chunks) {
+            for (NPC other: GLOBAL_CACHE.getNPCsIn(chunk)) {
+                if (other != this) {
+                    double x = other.location.getX() - at.getX();
+                    double y = other.location.getY() - at.getY();
+                    double z = other.location.getZ() - at.getZ();
+                    double width = other.entity.width * 0.5 + entity.width * 0.5;
+                    if (Math.abs(x) > width) continue;
+                    if (Math.abs(z) > width) continue;
+                    if (y > entity.length || y < -other.entity.length) continue;
+                    return true;
+                }
             }
         }
         return false;

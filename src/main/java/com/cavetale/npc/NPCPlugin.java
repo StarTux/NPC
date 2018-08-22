@@ -11,6 +11,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.craftbukkit.v1_13_R1.entity.CraftPlayer;
 import org.bukkit.entity.EntityType;
@@ -46,7 +48,9 @@ public final class NPCPlugin extends JavaPlugin {
     private PacketHandler packetHandler;
     @Getter private static NPCPlugin instance;
     private SpawnArea spawnArea;
-    @Getter private final List<PlayerSkin> playerSkins = new ArrayList<>();
+    @Getter private final Map<String, PlayerSkin> namedSkins = new HashMap<>();
+    @Getter private final Map<String, PlayerSkin> nameSkinCache = new HashMap<>();
+    @Getter private final Map<String, PlayerSkin> uuidSkinCache = new HashMap<>();
     private long ticksLived;
 
     @Override
@@ -99,19 +103,55 @@ public final class NPCPlugin extends JavaPlugin {
     }
 
     void loadPlayerSkins() {
-        playerSkins.clear();
-        YamlConfiguration config = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "skins.yml"));
-        for (Map<String, Object> map: (List<Map<String, Object>>)config.getList("skins")) {
-            String id = (String)map.get("id");
-            String name = (String)map.get("name");
-            String texture = (String)map.get("texture");
-            if (id == null || name == null) {
-                Map<String, String> map2 = (Map<String, String>)JSONValue.parse(new String(Base64.getDecoder().decode(texture)));
-                if (id == null) id = (String)map2.get("profileId");
-                if (name == null) name = (String)map2.get("profileName");
+        for (int i = 0; i < 2; i += 1) {
+            String fn;
+            switch (i) {
+            case 0:
+                fn = "skins.yml";
+                break;
+            case 1: default:
+                fn = "skin_cache.yml";
             }
-            String signature = (String)map.get("signature");
-            playerSkins.add(new PlayerSkin(id, name, texture, signature));
+            YamlConfiguration config = YamlConfiguration.loadConfiguration(new File(getDataFolder(), fn));
+            for (String key: config.getKeys(false)) {
+                ConfigurationSection section = config.getConfigurationSection(key);
+                if (section == null) continue;
+                String id = section.getString("id");
+                String name = section.getString("name");
+                String texture = section.getString("texture");
+                if (id == null || name == null) {
+                    Map<String, String> map2 = (Map<String, String>)JSONValue.parse(new String(Base64.getDecoder().decode(texture)));
+                    if (id == null) id = (String)map2.get("profileId");
+                    if (name == null) name = (String)map2.get("profileName");
+                }
+                String signature = section.getString("signature");
+                PlayerSkin playerSkin = new PlayerSkin(id, name, texture, signature);
+                switch (i) {
+                case 0:
+                    namedSkins.put(key, playerSkin);
+                    break;
+                case 1: default:
+                    uuidSkinCache.put(playerSkin.id, playerSkin);
+                    nameSkinCache.put(playerSkin.name, playerSkin);
+                }
+            }
+        }
+    }
+
+    void saveSkinCache() {
+        if (uuidSkinCache.isEmpty()) return;
+        YamlConfiguration config = new YamlConfiguration();
+        for (PlayerSkin playerSkin: uuidSkinCache.values()) {
+            ConfigurationSection section = config.createSection(playerSkin.id);
+            section.set("id", playerSkin.id);
+            section.set("name", playerSkin.name);
+            section.set("texture", playerSkin.texture);
+            section.set("signature", playerSkin.signature);
+        }
+        try {
+            config.save(new File(getDataFolder(), "skin_cache.yml"));
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
         }
     }
 
@@ -335,31 +375,45 @@ public final class NPCPlugin extends JavaPlugin {
 
     void getPlayerSkinAsync(String id, String name, Consumer<PlayerSkin> consumer) {
         if (name == null) throw new NullPointerException("Player name cannot be null!");
-        final String finalId, finalName;
         if (id == null) {
             UUID uuid = GenericEvents.cachedPlayerUuid(name);
             if (uuid != null) id = uuid.toString().replace("-", "");
         }
-        finalId = id;
-        finalName = name;
+        PlayerSkin playerSkin = null;
+        if (id != null) playerSkin = uuidSkinCache.get(id);
+        if (playerSkin == null && name != null) playerSkin = nameSkinCache.get(name);
+        final String finalId = id;
+        final String finalName = name;
+        final PlayerSkin finalSkin = playerSkin;
         getServer().getScheduler().runTaskAsynchronously(this, () -> {
-                String useId;
-                if (finalId != null) {
-                    useId = finalId;
-                } else {
-                    useId = fetchPlayerId(name);
+                PlayerSkin useSkin = finalSkin;
+                if (useSkin == null) {
+                    String useId;
+                    if (finalId != null) {
+                        useId = finalId;
+                    } else {
+                        useId = fetchPlayerId(name);
+                    }
+                    if (useId != null) {
+                        useSkin = fetchPlayerSkin(useId);
+                    } else {
+                        useSkin = null;
+                    }
                 }
-                final PlayerSkin playerSkin;
-                if (useId != null) {
-                    playerSkin = fetchPlayerSkin(useId);
-                } else {
-                    playerSkin = null;
-                }
-                getServer().getScheduler().runTask(NPCPlugin.this, () -> consumer.accept(playerSkin));
+                final PlayerSkin finalUseSkin = useSkin;
+                getServer().getScheduler().runTask(NPCPlugin.this, () -> {
+                        if (finalUseSkin != null) {
+                            uuidSkinCache.put(finalUseSkin.id, finalUseSkin);
+                            nameSkinCache.put(finalUseSkin.name, finalUseSkin);
+                            saveSkinCache();
+                        }
+                        consumer.accept(finalUseSkin);
+                    });
             });
     }
 
-    static String fetchPlayerId(String name) {
+    // Blocking. Do not call from main thread!
+    private static String fetchPlayerId(String name) {
         Object o;
         try {
             o = fetchJsonPost("https://api.mojang.com/profiles/minecraft", Arrays.asList(name));
@@ -375,7 +429,8 @@ public final class NPCPlugin extends JavaPlugin {
         return map.get("id");
     }
 
-    static PlayerSkin fetchPlayerSkin(String id) {
+    // Blocking. Do not call from main thread!
+    private static PlayerSkin fetchPlayerSkin(String id) {
         Object o;
         try {
             o = fetchJsonGet("https://sessionserver.mojang.com/session/minecraft/profile/" + id + "?unsigned=false");
@@ -401,7 +456,8 @@ public final class NPCPlugin extends JavaPlugin {
         return new PlayerSkin(id, name, texture, signature);
     }
 
-    static Object fetchJsonPost(String u, Object post) throws IOException {
+    // Blocking. Do not call from main thread!
+    private static Object fetchJsonPost(String u, Object post) throws IOException {
         URL url = new URL(u);
         HttpURLConnection con = (HttpURLConnection)url.openConnection();
         con.setDoOutput(true);
@@ -421,7 +477,8 @@ public final class NPCPlugin extends JavaPlugin {
         return JSONValue.parse(sb.toString());
     }
 
-    static Object fetchJsonGet(String u) throws IOException {
+    // Blocking. Do not call from main thread!
+    private static Object fetchJsonGet(String u) throws IOException {
         URL url = new URL(u);
         HttpURLConnection con = (HttpURLConnection)url.openConnection();
         con.setRequestMethod("GET");

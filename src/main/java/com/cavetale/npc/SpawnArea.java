@@ -110,8 +110,8 @@ final class SpawnArea {
             Location location = block.getLocation().add(0.5, 0.0, 0.5);
             final NPC npc;
             if (random.nextInt(3) > 0) {
-                int skinIndex = random.nextInt(plugin.getPlayerSkins().size());
-                PlayerSkin playerSkin = plugin.getPlayerSkins().get(skinIndex);
+                List<PlayerSkin> skins = new ArrayList<>(plugin.getNamedSkins().values());
+                PlayerSkin playerSkin = skins.get(random.nextInt(skins.size()));
                 StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < 8; i += 1) {
                     sb.append(ChatColor.values()[random.nextInt(ChatColor.values().length)]);

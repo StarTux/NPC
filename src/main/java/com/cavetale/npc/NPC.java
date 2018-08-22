@@ -91,6 +91,7 @@ public final class NPC {
     private boolean forceLookUpdate, forceTeleport;
     private double viewDistance = 128.0;
     private double viewDistanceSquared = 16384.0;
+    @Setter private boolean hideNameTag = true; // TODO setter which updates things
     @Setter private boolean onGround;
     // Identity
     private Entity entity;
@@ -571,7 +572,9 @@ public final class NPC {
                 uuid = UUID.fromString("00000000-0000-2000-0000-000000000000");
             }
             final GameProfile profile = new GameProfile(uuid, name);
-            entity = new EntityPlayer(minecraftServer, worldServer, profile, new PlayerInteractManager(worldServer));
+            EntityPlayer entityPlayer = new EntityPlayer(minecraftServer, worldServer, profile, new PlayerInteractManager(worldServer));
+            entityPlayer.listName = new ChatComponentText("");
+            entity = entityPlayer;
             id = entity.getId();
             this.name = name;
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
@@ -774,13 +777,15 @@ public final class NPC {
             connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
             connection.sendPacket(new PacketPlayOutNamedEntitySpawn((EntityPlayer)entity));
             watcher.setPlayerSkin = 0;
-            Scoreboard scoreboard = watcher.player.getScoreboard();
-            Team team = scoreboard.getTeam(TEAM_NAME);
-            if (team == null) {
-                team = scoreboard.registerNewTeam(TEAM_NAME);
-                team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+            if (hideNameTag) {
+                Scoreboard scoreboard = watcher.player.getScoreboard();
+                Team team = scoreboard.getTeam(TEAM_NAME);
+                if (team == null) {
+                    team = scoreboard.registerNewTeam(TEAM_NAME);
+                    team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+                }
+                if (!team.hasEntry(name)) team.addEntry(name);
             }
-            if (!team.hasEntry(name)) team.addEntry(name);
             connection.sendPacket(entityData.makeMetadataPacket());
             connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
             break;
@@ -1396,15 +1401,16 @@ public final class NPC {
                 continue;
             }
             PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
-            // Update scoreboard if necessary
             if (type == Type.PLAYER) {
-                Scoreboard scoreboard = watcher.player.getScoreboard();
-                Team team = scoreboard.getTeam(TEAM_NAME);
-                if (team == null) {
-                    team = scoreboard.registerNewTeam(TEAM_NAME);
-                    team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+                if (hideNameTag) {
+                    Scoreboard scoreboard = watcher.player.getScoreboard();
+                    Team team = scoreboard.getTeam(TEAM_NAME);
+                    if (team == null) {
+                        team = scoreboard.registerNewTeam(TEAM_NAME);
+                        team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+                    }
+                    if (!team.hasEntry(name)) team.addEntry(name);
                 }
-                if (!team.hasEntry(name)) team.addEntry(name);
                 // Update skin every now and then
                 if (watcher.setPlayerSkin == watcher.ticksLived) {
                     watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20) + ThreadLocalRandom.current().nextInt(20);

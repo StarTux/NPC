@@ -36,6 +36,12 @@
       <version>1.14.8</version>
       <scope>provided</scope>
     </dependency>
+    <!-- Generic Events -->
+    <dependency>
+      <groupId>com.winthier.generic_events</groupId>
+      <artifactId>generic_events</artifactId>
+      <version>0.1-SNAPSHOT</version>
+    </dependency>
     <!-- Packet Listener API -->
     <dependency>
       <groupId>org.inventivetalent.packetlistener</groupId>

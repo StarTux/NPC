@@ -5,7 +5,5 @@ import lombok.Data;
 
 @Data
 public final class PlayerSkin {
-    public final String texture;
-    public final String signature;
-    public final List<String> tags;
+    public final String id, name, texture, signature;
 }

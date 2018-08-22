@@ -1,12 +1,22 @@
 package com.cavetale.npc;
 
+import com.winthier.generic_events.GenericEvents;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
+import java.util.function.Consumer;
 import lombok.Getter;
 import net.minecraft.server.v1_13_R1.BlockPosition;
 import net.minecraft.server.v1_13_R1.PacketPlayInUseEntity;
@@ -28,6 +38,7 @@ import org.inventivetalent.packetlistener.PacketListenerAPI;
 import org.inventivetalent.packetlistener.handler.PacketHandler;
 import org.inventivetalent.packetlistener.handler.ReceivedPacket;
 import org.inventivetalent.packetlistener.handler.SentPacket;
+import org.json.simple.JSONValue;
 
 public final class NPCPlugin extends JavaPlugin {
     private final List<NPC> npcs = new ArrayList<>();
@@ -91,10 +102,16 @@ public final class NPCPlugin extends JavaPlugin {
         playerSkins.clear();
         YamlConfiguration config = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "skins.yml"));
         for (Map<String, Object> map: (List<Map<String, Object>>)config.getList("skins")) {
+            String id = (String)map.get("id");
+            String name = (String)map.get("name");
             String texture = (String)map.get("texture");
+            if (id == null || name == null) {
+                Map<String, String> map2 = (Map<String, String>)JSONValue.parse(new String(Base64.getDecoder().decode(texture)));
+                if (id == null) id = (String)map2.get("profileId");
+                if (name == null) name = (String)map2.get("profileName");
+            }
             String signature = (String)map.get("signature");
-            List<String> tags = (List<String>)map.get("tags");
-            playerSkins.add(new PlayerSkin(texture, signature, tags));
+            playerSkins.add(new PlayerSkin(id, name, texture, signature));
         }
     }
 
@@ -114,7 +131,7 @@ public final class NPCPlugin extends JavaPlugin {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 0) return false;
-        Player player = (Player)sender;
+        Player player = sender instanceof Player ? (Player)sender : null;
         Iterator<String> argIter = Arrays.asList(args).iterator();
         switch (argIter.next()) {
         case "spawn":
@@ -141,6 +158,21 @@ public final class NPCPlugin extends JavaPlugin {
                     while (argIter.hasNext()) sb.append(" ").append(argIter.next());
                     npc = new NPC(NPC.Type.MARKER, location, sb.toString(), lifespan);
                     break;
+                case "realplayer":
+                    player.sendMessage("Attempting to spawn...");
+                    final String name = argIter.next();
+                    getPlayerSkinAsync(null, name, (playerSkin) -> {
+                            if (!player.isValid()) return;
+                            if (playerSkin == null) {
+                                player.sendMessage("Skin not found: " + name);
+                                return;
+                            }
+                            NPC npc2 = new NPC(NPC.Type.PLAYER, player.getLocation(), name, playerSkin);
+                            if (argIter.hasNext()) npc2.setJob(NPC.Job.valueOf(argIter.next().toUpperCase()));
+                            enableNPC(npc2);
+                            player.sendMessage("Spawned " + npc2.getName());
+                        });
+                    return true;
                 default:
                     return false;
                 }
@@ -228,11 +260,34 @@ public final class NPCPlugin extends JavaPlugin {
             }
             break;
         case "sign":
-            if (args.length == 1) {
+            if (args.length == 1 && player != null) {
                 PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;
                 Location loc = player.getLocation();
                 player.sendBlockChange(loc, Material.SIGN.createBlockData());
                 connection.sendPacket(new PacketPlayOutOpenSignEditor(new BlockPosition(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())));
+                return true;
+            }
+            break;
+        case "uuid":
+            if (args.length == 2) {
+                String uuid = fetchPlayerId(args[1]);
+                sender.sendMessage("UUID of " + args[1] + ": " + uuid);
+                return true;
+            }
+            break;
+        case "skin":
+            if (args.length == 2) {
+                final String name = args[1];
+                getPlayerSkinAsync(null, name, (playerSkin) -> {
+                        if (playerSkin == null) {
+                            sender.sendMessage("Player not found: " + name);
+                            return;
+                        }
+                        sender.sendMessage("Name: " + playerSkin.name);
+                        sender.sendMessage("UUID: " + playerSkin.id);
+                        sender.sendMessage("Texture: " + playerSkin.texture);
+                        sender.sendMessage("Signature: " + playerSkin.signature);
+                    });
                 return true;
             }
             break;
@@ -276,5 +331,108 @@ public final class NPCPlugin extends JavaPlugin {
         }
         spawnArea.onTick();
         ticksLived += 1;
+    }
+
+    void getPlayerSkinAsync(String id, String name, Consumer<PlayerSkin> consumer) {
+        if (name == null) throw new NullPointerException("Player name cannot be null!");
+        final String finalId, finalName;
+        if (id == null) {
+            UUID uuid = GenericEvents.cachedPlayerUuid(name);
+            if (uuid != null) id = uuid.toString().replace("-", "");
+        }
+        finalId = id;
+        finalName = name;
+        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+                String useId;
+                if (finalId != null) {
+                    useId = finalId;
+                } else {
+                    useId = fetchPlayerId(name);
+                }
+                final PlayerSkin playerSkin;
+                if (useId != null) {
+                    playerSkin = fetchPlayerSkin(useId);
+                } else {
+                    playerSkin = null;
+                }
+                getServer().getScheduler().runTask(NPCPlugin.this, () -> consumer.accept(playerSkin));
+            });
+    }
+
+    static String fetchPlayerId(String name) {
+        Object o;
+        try {
+            o = fetchJsonPost("https://api.mojang.com/profiles/minecraft", Arrays.asList(name));
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+            return null;
+        }
+        if (o == null) return null;
+        if (!(o instanceof List)) return null;
+        List<Object> list = (List<Object>)o;
+        if (list.isEmpty()) return null;
+        Map<String, String> map = (Map<String, String>)list.get(0);
+        return map.get("id");
+    }
+
+    static PlayerSkin fetchPlayerSkin(String id) {
+        Object o;
+        try {
+            o = fetchJsonGet("https://sessionserver.mojang.com/session/minecraft/profile/" + id + "?unsigned=false");
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+            return null;
+        }
+        if (o == null) return null;
+        if (!(o instanceof Map)) return null;
+        Map<String, Object> map = (Map<String, Object>)o;
+        id = (String)map.get("id");
+        String name = (String)map.get("name");
+        List<Object> list = (List<Object>)map.get("properties");
+        if (list.isEmpty()) return null;
+        String texture = null, signature = null;
+        for (Object p: list) {
+            if (!(p instanceof Map)) continue;
+            map = (Map<String, Object>)p;
+            texture = (String)map.get("value");
+            signature = (String)map.get("signature");
+            if (texture != null) break;
+        }
+        return new PlayerSkin(id, name, texture, signature);
+    }
+
+    static Object fetchJsonPost(String u, Object post) throws IOException {
+        URL url = new URL(u);
+        HttpURLConnection con = (HttpURLConnection)url.openConnection();
+        con.setDoOutput(true);
+        con.setRequestMethod("POST");
+        con.setRequestProperty("Content-Type", "application/json");
+        PrintStream out = new PrintStream(con.getOutputStream());
+        out.println(JSONValue.toJSONString(post));
+        out.flush();
+        out.close();
+        BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while (null != (line = in.readLine())) {
+            sb.append(line);
+        }
+        in.close();
+        return JSONValue.parse(sb.toString());
+    }
+
+    static Object fetchJsonGet(String u) throws IOException {
+        URL url = new URL(u);
+        HttpURLConnection con = (HttpURLConnection)url.openConnection();
+        con.setRequestMethod("GET");
+        con.setRequestProperty("Content-Type", "application/json");
+        BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while (null != (line = in.readLine())) {
+            sb.append(line);
+        }
+        in.close();
+        return JSONValue.parse(sb.toString());
     }
 }

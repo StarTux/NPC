@@ -89,6 +89,8 @@ public final class NPC {
     private Location lastLocation, trackLocation, fromLocation, toLocation;
     private double locationError = 0.0, locationMoved = 0.0;
     private boolean forceLookUpdate, forceTeleport;
+    private double viewDistance = 128.0;
+    private double viewDistanceSquared = 16384.0;
     @Setter private boolean onGround;
     // Identity
     private Entity entity;
@@ -114,10 +116,13 @@ public final class NPC {
     private int turn, turnTotal; // Countdown for current task duration
     private double movementSpeed = 3.0; // Blocks per second
     private double direction;
+    // Task.FOLLOW or Job.RELATIVE
     @Setter private LivingEntity followEntity;
     @Setter private NPC followNPC;
     @Setter private Vector followOffset;
     private Location followLocation;
+    private double followDistance;
+    private double followDistanceSquared;
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
 
@@ -324,7 +329,7 @@ public final class NPC {
         ITEM_FRAME_ITEM(6, DataType.ITEM_STACK, ItemStack.a),
         ITEM_FRAME_ROTATION(7, DataType.INTEGER, 0),
         ITEM_ITEM(6, DataType.ITEM_STACK, ItemStack.a),
-        LIVING_HAND_STATE(6, DataType.BYTE, (byte)0), //mask
+        LIVING_HAND_FLAGS(6, DataType.BYTE, (byte)0), //mask
         LIVING_HEALTH(7, DataType.FLOAT, 0F),
         LIVING_POTION_EFFECT_COLOR(8, DataType.INTEGER, 0),
         LIVING_POTION_EFFECT_AMBIENT(9, DataType.BOOLEAN, false),
@@ -366,7 +371,7 @@ public final class NPC {
         WOLF_BEGGING(16, DataType.BOOLEAN, false),
         WOLF_COLLAR_COLOR(17, DataType.INTEGER, 14),
         PARROT_VARIANT(15, DataType.INTEGER, 0),
-        VILLAGER_PROFESSION(15, DataType.INTEGER, 0),
+        VILLAGER_PROFESSION(13, DataType.INTEGER, 0),
         IRON_GOLEM_FLAGS(12, DataType.BYTE, (byte)0), //mask
         SNOWMAN_FLAGS(12, DataType.BYTE, (byte)0x10), //mask
         SHULKER_DIRECTION(12, DataType.DIRECTION, EnumDirection.DOWN),
@@ -757,6 +762,9 @@ public final class NPC {
         if (type == Type.PLAYER) {
             if (watcher.unsetPlayerSkin < 0) watcher.setPlayerSkin = watcher.ticksLived;
         }
+        for (DataValue dv: entityData.data.values()) {
+            player.sendMessage(dv.variable.name() + " " + dv.value);
+        }
     }
 
     private void startWatch(Watcher watcher) {
@@ -876,9 +884,9 @@ public final class NPC {
                         turn = 20 + ThreadLocalRandom.current().nextInt(40);
                     } else {
                         task = Task.TURN;
-                        turn = 20 + ThreadLocalRandom.current().nextInt(40);
+                        turn = 10 + ThreadLocalRandom.current().nextInt(21);
                         direction = ThreadLocalRandom.current().nextBoolean() ? -1 : 1;
-                        direction *= 2.5 + ThreadLocalRandom.current().nextDouble() * 2.5;
+                        direction *= 10.0 + ThreadLocalRandom.current().nextDouble() * 10.0;
                     }
                     break;
                 case LOOK_AROUND:
@@ -886,7 +894,8 @@ public final class NPC {
                 default:
                     task = Task.WALK;
                     turn = 20 + ThreadLocalRandom.current().nextInt(100);
-                    direction = ThreadLocalRandom.current().nextFloat() * 4.0f - 2.0f;
+                    direction = ThreadLocalRandom.current().nextBoolean() ? -1 : 1;
+                    direction *= ThreadLocalRandom.current().nextDouble() * 10.0;
                 }
             }
             performTask();
@@ -918,11 +927,11 @@ public final class NPC {
             switch ((int)(ticksLived % 20L)) {
             case 0: case 6:
                 setFlag(DataVar.ENTITY_FLAGS, EntityFlag.ENTITY_CROUCHING, true);
-                updateEntityData(0L);
+                updateData(0L);
                 break;
             case 3: case 9:
                 setFlag(DataVar.ENTITY_FLAGS, EntityFlag.ENTITY_CROUCHING, false);
-                updateEntityData(0L);
+                updateData(0L);
                 break;
             case 10: swingArm(false); break;
             case 15: swingArm(true); break;
@@ -992,10 +1001,26 @@ public final class NPC {
                 return;
             }
             didMoveVertical = fightGravity() || fall();
-            location.setDirection(followEntity.getEyeLocation().subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
-            headYaw = location.getYaw();
-            forceLookUpdate = true;
-            if (!didMoveVertical && followEntity.getLocation().distanceSquared(location) >= 4.0) walkForward();
+            Location follow, followEye;
+            if (followEntity != null) {
+                follow = followEntity.getLocation();
+                followEye = followEntity.getEyeLocation();
+            } else if (followNPC != null) {
+                follow = followNPC.getLocation();
+                followEye = followNPC.getHeadLocation();
+            } else if (followLocation != null) {
+                follow = followLocation.clone();
+                followEye = followLocation.clone();
+            } else {
+                task = Task.NONE;
+                return;
+            }
+            if (entity instanceof EntityLiving) {
+                location.setDirection(followEye.subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
+                headYaw = location.getYaw();
+                forceLookUpdate = true;
+            }
+            if (!didMoveVertical && follow.distanceSquared(location) >= followDistanceSquared) walkForward();
             break;
         default:
             throw new IllegalStateException("Unhandled Task: " + task);
@@ -1013,7 +1038,7 @@ public final class NPC {
         packets.add(new PacketPlayOutAnimation(entity, mainHand ? 0 : 3));
     }
 
-    public void updateEntityData(long delay) {
+    public void updateData(long delay) {
         PacketPlayOutEntityMetadata packet = null;
         for (Watcher watcher: watchers.values()) {
             if (watcher.entityData.isEmpty()) {
@@ -1027,7 +1052,7 @@ public final class NPC {
         }
     }
 
-    public void updateEntityData(Player player, long delay) {
+    public void updateData(Player player, long delay) {
         Watcher watcher = watchers.get(player.getUniqueId());
         if (watcher == null) return;
         if (watcher.entityData.isEmpty()) {
@@ -1046,6 +1071,16 @@ public final class NPC {
     }
 
     // Data getters and setters
+
+    public void setViewDistance(double viewDist) {
+        viewDistance = viewDist;
+        viewDistanceSquared = viewDist * viewDist;
+    }
+
+    public void setFollowDistance(double followDist) {
+        followDistance = followDist;
+        followDistanceSquared = followDist * followDist;
+    }
 
     public void setData(DataVar variable, Object value) {
         if (value == null) {
@@ -1355,7 +1390,7 @@ public final class NPC {
                 continue;
             }
             if (!watcher.player.getWorld().equals(location.getWorld())
-                || watcher.player.getLocation().distanceSquared(location) > 16384.0) { // 128^2
+                || watcher.player.getLocation().distanceSquared(location) > viewDistanceSquared) {
                 stopWatch(watcher);
                 iter.remove();
                 continue;
@@ -1372,7 +1407,7 @@ public final class NPC {
                 if (!team.hasEntry(name)) team.addEntry(name);
                 // Update skin every now and then
                 if (watcher.setPlayerSkin == watcher.ticksLived) {
-                    watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20);
+                    watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20) + ThreadLocalRandom.current().nextInt(20);
                     watcher.unsetPlayerSkin = watcher.ticksLived + 4L;
                     packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
                 }
@@ -1394,7 +1429,7 @@ public final class NPC {
         // Find new players
         for (Player player: location.getWorld().getPlayers()) {
             if (!watcherIds.contains(player.getUniqueId())
-                && player.getLocation().distanceSquared(location) < 16384.0) { // 128^2
+                && player.getLocation().distanceSquared(location) < viewDistanceSquared) {
                 if (!exclusive.isEmpty() && !exclusive.contains(player.getUniqueId())) continue;
                 if (!delegate.onPlayerAdd(player)) continue;
                 Watcher watcher = new Watcher(player);

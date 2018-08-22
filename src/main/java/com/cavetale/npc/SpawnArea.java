@@ -121,6 +121,7 @@ final class SpawnArea {
             } else {
                 npc = new NPC(NPC.Type.MOB, location, EntityType.VILLAGER);
                 npc.setData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));
+                if (random.nextBoolean()) npc.setData(NPC.DataVar.AGEABLE_BABY, true);
                 npc.setJob(NPC.Job.WANDER);
             }
             if (npc.isBlockedAt(location)) continue;

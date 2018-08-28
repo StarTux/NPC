@@ -116,16 +116,17 @@ final class SpawnArea {
                 for (int i = 0; i < 8; i += 1) {
                     sb.append(ChatColor.values()[random.nextInt(ChatColor.values().length)]);
                 }
-                npc = new NPC(NPC.Type.PLAYER, location, sb.toString(), playerSkin);
+                npc = new NPC(plugin, NPC.Type.PLAYER, location, sb.toString(), playerSkin);
                 npc.setJob(random.nextInt(5) == 0 ? NPC.Job.DANCE : NPC.Job.WANDER);
             } else {
-                npc = new NPC(NPC.Type.MOB, location, EntityType.VILLAGER);
+                npc = new NPC(plugin, NPC.Type.MOB, location, EntityType.VILLAGER);
                 npc.setData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));
                 if (random.nextBoolean()) npc.setData(NPC.DataVar.AGEABLE_BABY, true);
                 npc.setJob(NPC.Job.WANDER);
             }
             if (npc.isBlockedAt(location)) continue;
             if (npc.collidesWithOther()) continue;
+            npc.setSpeech(Arrays.asList("Hello World!", "How are you?", "What's going on?"));
             npc.setDelegate(new NPC.Delegate() {
                     @Override public void onTick() {
                     }

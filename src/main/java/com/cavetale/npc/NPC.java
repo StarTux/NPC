@@ -18,55 +18,55 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.Value;
-import net.minecraft.server.v1_13_R1.Block;
-import net.minecraft.server.v1_13_R1.BlockPosition;
-import net.minecraft.server.v1_13_R1.ChatComponentText;
-import net.minecraft.server.v1_13_R1.DataWatcher;
-import net.minecraft.server.v1_13_R1.DataWatcherObject;
-import net.minecraft.server.v1_13_R1.DataWatcherRegistry;
-import net.minecraft.server.v1_13_R1.DataWatcherSerializer;
-import net.minecraft.server.v1_13_R1.Entity;
-import net.minecraft.server.v1_13_R1.EntityArmorStand;
-import net.minecraft.server.v1_13_R1.EntityFallingBlock;
-import net.minecraft.server.v1_13_R1.EntityItem;
-import net.minecraft.server.v1_13_R1.EntityLiving;
-import net.minecraft.server.v1_13_R1.EntityPlayer;
-import net.minecraft.server.v1_13_R1.EntityTypes;
-import net.minecraft.server.v1_13_R1.EnumDirection;
-import net.minecraft.server.v1_13_R1.IBlockData;
-import net.minecraft.server.v1_13_R1.IChatBaseComponent;
-import net.minecraft.server.v1_13_R1.ItemStack;
-import net.minecraft.server.v1_13_R1.MinecraftServer;
-import net.minecraft.server.v1_13_R1.NBTTagCompound;
-import net.minecraft.server.v1_13_R1.Packet;
-import net.minecraft.server.v1_13_R1.PacketPlayOutAnimation;
-import net.minecraft.server.v1_13_R1.PacketPlayOutEntity;
-import net.minecraft.server.v1_13_R1.PacketPlayOutEntityDestroy;
-import net.minecraft.server.v1_13_R1.PacketPlayOutEntityHeadRotation;
-import net.minecraft.server.v1_13_R1.PacketPlayOutEntityMetadata;
-import net.minecraft.server.v1_13_R1.PacketPlayOutEntityTeleport;
-import net.minecraft.server.v1_13_R1.PacketPlayOutEntityVelocity;
-import net.minecraft.server.v1_13_R1.PacketPlayOutNamedEntitySpawn;
-import net.minecraft.server.v1_13_R1.PacketPlayOutPlayerInfo;
-import net.minecraft.server.v1_13_R1.PacketPlayOutSpawnEntity;
-import net.minecraft.server.v1_13_R1.PacketPlayOutSpawnEntityLiving;
-import net.minecraft.server.v1_13_R1.ParticleParam;
-import net.minecraft.server.v1_13_R1.Particles;
-import net.minecraft.server.v1_13_R1.PlayerConnection;
-import net.minecraft.server.v1_13_R1.PlayerInteractManager;
-import net.minecraft.server.v1_13_R1.Vector3f;
-import net.minecraft.server.v1_13_R1.WorldServer;
+import net.minecraft.server.v1_13_R2.Block;
+import net.minecraft.server.v1_13_R2.BlockPosition;
+import net.minecraft.server.v1_13_R2.ChatComponentText;
+import net.minecraft.server.v1_13_R2.DataWatcher;
+import net.minecraft.server.v1_13_R2.DataWatcherObject;
+import net.minecraft.server.v1_13_R2.DataWatcherRegistry;
+import net.minecraft.server.v1_13_R2.DataWatcherSerializer;
+import net.minecraft.server.v1_13_R2.Entity;
+import net.minecraft.server.v1_13_R2.EntityArmorStand;
+import net.minecraft.server.v1_13_R2.EntityFallingBlock;
+import net.minecraft.server.v1_13_R2.EntityItem;
+import net.minecraft.server.v1_13_R2.EntityLiving;
+import net.minecraft.server.v1_13_R2.EntityPlayer;
+import net.minecraft.server.v1_13_R2.EntityTypes;
+import net.minecraft.server.v1_13_R2.EnumDirection;
+import net.minecraft.server.v1_13_R2.IBlockData;
+import net.minecraft.server.v1_13_R2.IChatBaseComponent;
+import net.minecraft.server.v1_13_R2.ItemStack;
+import net.minecraft.server.v1_13_R2.MinecraftServer;
+import net.minecraft.server.v1_13_R2.NBTTagCompound;
+import net.minecraft.server.v1_13_R2.Packet;
+import net.minecraft.server.v1_13_R2.PacketPlayOutAnimation;
+import net.minecraft.server.v1_13_R2.PacketPlayOutEntity;
+import net.minecraft.server.v1_13_R2.PacketPlayOutEntityDestroy;
+import net.minecraft.server.v1_13_R2.PacketPlayOutEntityHeadRotation;
+import net.minecraft.server.v1_13_R2.PacketPlayOutEntityMetadata;
+import net.minecraft.server.v1_13_R2.PacketPlayOutEntityTeleport;
+import net.minecraft.server.v1_13_R2.PacketPlayOutEntityVelocity;
+import net.minecraft.server.v1_13_R2.PacketPlayOutNamedEntitySpawn;
+import net.minecraft.server.v1_13_R2.PacketPlayOutPlayerInfo;
+import net.minecraft.server.v1_13_R2.PacketPlayOutSpawnEntity;
+import net.minecraft.server.v1_13_R2.PacketPlayOutSpawnEntityLiving;
+import net.minecraft.server.v1_13_R2.ParticleParam;
+import net.minecraft.server.v1_13_R2.Particles;
+import net.minecraft.server.v1_13_R2.PlayerConnection;
+import net.minecraft.server.v1_13_R2.PlayerInteractManager;
+import net.minecraft.server.v1_13_R2.Vector3f;
+import net.minecraft.server.v1_13_R2.WorldServer;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Tag;
 import org.bukkit.block.data.type.Slab;
-import org.bukkit.craftbukkit.v1_13_R1.CraftServer;
-import org.bukkit.craftbukkit.v1_13_R1.CraftWorld;
-import org.bukkit.craftbukkit.v1_13_R1.block.data.CraftBlockData;
-import org.bukkit.craftbukkit.v1_13_R1.entity.CraftPlayer;
-import org.bukkit.craftbukkit.v1_13_R1.inventory.CraftItemStack;
+import org.bukkit.craftbukkit.v1_13_R2.CraftServer;
+import org.bukkit.craftbukkit.v1_13_R2.CraftWorld;
+import org.bukkit.craftbukkit.v1_13_R2.block.data.CraftBlockData;
+import org.bukkit.craftbukkit.v1_13_R2.entity.CraftPlayer;
+import org.bukkit.craftbukkit.v1_13_R2.inventory.CraftItemStack;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -77,6 +77,7 @@ import org.bukkit.util.Vector;
 @Getter
 public final class NPC {
     private static final GlobalCache GLOBAL_CACHE = new GlobalCache();
+    private final NPCManager manager;
     private final Type type;
     private final int id;
     private final String name;
@@ -107,6 +108,7 @@ public final class NPC {
     private final ScheduledPacketList packets = new ScheduledPacketList();
     private long ticksLived;
     @Setter private long lifespan = -1;
+    @Setter private long speechLifespan = 40L;
     private long lastInteract;
     @Setter private boolean removeWhenUnwatched;
     // Job
@@ -124,11 +126,181 @@ public final class NPC {
     private Location followLocation;
     private double followDistance;
     private double followDistanceSquared;
+    @Setter private Conversation conversation;
+    @Setter private List<String> speech;
+    private NPC speechBubble;
+    @Setter private String chatName;
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
 
+    // -- Constructors
+
+    public NPC(NPCManager manager, Type type, Location location, String name, PlayerSkin playerSkin) {
+        this.manager = manager;
+        this.type = type;
+        this.location = location;
+        this.playerSkin = null;
+        final MinecraftServer minecraftServer = ((CraftServer)Bukkit.getServer()).getServer();
+        final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
+        switch (type) {
+        case PLAYER:
+            UUID uuid;
+            if (true) {
+                long lower = ThreadLocalRandom.current().nextLong();
+                long upper = ThreadLocalRandom.current().nextLong();
+                long versionMask = 0x000000000000F000;
+                long versionFlag = 0x0000000000002000;
+                upper &= ~versionMask;
+                upper |= versionFlag;
+                uuid = new UUID(upper, lower);
+            } else {
+                uuid = UUID.fromString("00000000-0000-2000-0000-000000000000");
+            }
+            final GameProfile profile = new GameProfile(uuid, name);
+            EntityPlayer entityPlayer = new EntityPlayer(minecraftServer, worldServer, profile, new PlayerInteractManager(worldServer));
+            entityPlayer.listName = new ChatComponentText("");
+            entity = entityPlayer;
+            id = entity.getId();
+            this.name = name;
+            entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
+            if (playerSkin != null) {
+                profile.getProperties().put("texture", new Property("textures", playerSkin.texture, playerSkin.signature));
+            }
+            // Set all skin layers visible
+            entityData.setFlag(DataVar.PLAYER_SKIN_PARTS, EntityFlag.PLAYER_SKIN_ALL, true);
+            break;
+        default:
+            throw new IllegalArgumentException("NPC(Type, Location): wrong constructor for type " + type);
+        }
+    }
+
+    public NPC(NPCManager manager, Type type, Location location, EntityType entityType) {
+        this.manager = manager;
+        this.type = type;
+        this.location = location;
+        this.entityType = entityType;
+        final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
+        switch (type) {
+        case MOB:
+            entity = EntityTypes.a(entityType.getName()).a(worldServer);
+            id = entity.getId();
+            name = entity.getUniqueID().toString().replace("-", "");
+            entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
+            if (entityType == EntityType.BAT) {
+                entityData.setFlag(DataVar.BAT_FLAGS, EntityFlag.BAT_HANGING, false);
+            }
+            break;
+        default:
+            throw new IllegalArgumentException("NPC(Type, Location, EntityType): wrong constructor for type " + type);
+        }
+    }
+
+    public NPC(NPCManager manager, Type type, Location location, org.bukkit.block.data.BlockData blockData) {
+        this.manager = manager;
+        this.type = type;
+        this.location = location;
+        this.blockData = blockData;
+        switch (type) {
+        case BLOCK:
+            final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
+            entity = new EntityFallingBlock(worldServer, location.getX(), location.getY(), location.getZ(), ((CraftBlockData)blockData).getState());
+            id = entity.getId();
+            name = entity.getUniqueID().toString().replace("-", "");
+            entityData.set(DataVar.ENTITY_NO_GRAVITY, true);
+            entity.setPosition(location.getX(), location.getY(), location.getZ());
+            break;
+        default:
+            throw new IllegalArgumentException("NPC(Type, Location, BlockData): wrong constructor for type " + type);
+        }
+    }
+
+    public NPC(NPCManager manager, Type type, Location location, org.bukkit.inventory.ItemStack itemStack) {
+        this.manager = manager;
+        this.type = type;
+        this.location = location;
+        switch (type) {
+        case ITEM:
+            final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
+            this.itemStack = itemStack;
+            ItemStack nmsItem = CraftItemStack.asNMSCopy(itemStack);
+            entity = new EntityItem(worldServer, location.getX(), location.getY(), location.getZ(), nmsItem);
+            id = entity.getId();
+            name = entity.getUniqueID().toString().replace("-", "");
+            entity.motX = 0.0;
+            entity.motY = 0.0;
+            entity.motZ = 0.0;
+            entityData.set(DataVar.ENTITY_NO_GRAVITY, true);
+            entityData.set(DataVar.ITEM_ITEM, nmsItem);
+            break;
+        default:
+            throw new IllegalArgumentException("NPC(Type, Location, ItemStack): wrong constructor for type " + type);
+        }
+    }
+
+    public NPC(NPCManager manager, Type type, Location location, String text) {
+        this.manager = manager;
+        this.type = type;
+        this.location = location;
+        switch (type) {
+        case MARKER:
+            final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
+            entity = new EntityArmorStand(worldServer, location.getX(), location.getY(), location.getZ());
+            id = entity.getId();
+            name = entity.getUniqueID().toString().replace("-", "");
+            entityData.set(DataVar.ENTITY_NO_GRAVITY, true);
+            entityData.set(DataVar.ENTITY_CUSTOM_NAME_VISIBLE, true);
+            entityData.setFlags(DataVar.ENTITY_FLAGS, EntityFlag.ENTITY_INVISIBLE);
+            entityData.setFlags(DataVar.ARMOR_STAND_FLAGS, EntityFlag.ARMOR_STAND_NO_BASEPLATE, EntityFlag.ARMOR_STAND_MARKER);
+            updateCustomName(text);
+            job = Job.RELATIVE;
+            break;
+        default:
+            throw new IllegalArgumentException("NPC(Type, Location, String): wrong consturctor for type " + type);
+        }
+    }
+
+    // -- Overridable Delegate methods
+
+    public interface Delegate {
+        void onTick();
+
+        /**
+         * Called when the NPC is added to the list of NPCs, before it is
+         * ticked for the first time
+         */
+        default void onEnable() { }
+
+        /**
+         * Called when the NPC is removed from the list of NPCs, after it
+         * was ticked for the final time.
+         */
+        default void onDisable() { }
+
+        default boolean canMoveIn(org.bukkit.block.Block block) {
+            return true;
+        }
+
+        default boolean canMoveOn(org.bukkit.block.Block block) {
+            return true;
+        }
+
+        default boolean onInteract(Player player, boolean rightClick) {
+            return true;
+        }
+
+        default boolean onPlayerAdd(Player player) {
+            return true;
+        }
+
+        default void onPlayerRemove(Player player) { }
+
+        default void onBeginConversation(Conversation conversation) { }
+
+        default void onEndConversation(Conversation conversation) { }
+    }
+
     @RequiredArgsConstructor
-    class Watcher {
+    public class Watcher {
         final Player player;
         final ScheduledPacketList packets = new ScheduledPacketList();
         final EntityData entityData = new EntityData();
@@ -138,12 +310,12 @@ public final class NPC {
     }
 
     @RequiredArgsConstructor
-    static class ScheduledPacket {
+    private static final class ScheduledPacket {
         final Packet packet;
         final long tick;
     }
 
-    class ScheduledPacketList {
+    private final class ScheduledPacketList {
         final List<ScheduledPacket> packets = new ArrayList<>();
         void add(Packet packet, long delay) {
             ScheduledPacket entry = new ScheduledPacket(packet, ticksLived + delay);
@@ -172,11 +344,11 @@ public final class NPC {
     }
 
     @Value
-    static class NPCChunk {
+    public static final class NPCChunk {
         public final int x, z;
     }
 
-    static class GlobalCache {
+    private static final class GlobalCache {
         private final Map<String, ChunkNPCMap> worldMap = new HashMap<>();
         ChunkNPCMap getChunkNPCMap(String key) {
             ChunkNPCMap result = worldMap.get(key);
@@ -205,20 +377,20 @@ public final class NPC {
         }
     }
 
-    static class ChunkNPCMap {
+    private static final class ChunkNPCMap {
         final Map<NPCChunk, List<NPC>> npcs = new HashMap<>();
     }
 
-    enum Type {
+    public enum Type {
         PLAYER, MOB, BLOCK, ITEM, MARKER;
     }
 
-    enum Job {
+    public enum Job {
         NONE, WANDER, WIGGLE, DANCE, RELATIVE;
     }
 
-    enum Task {
-        NONE, WALK, TURN, LOOK_AROUND, LOOK_AT, FOLLOW;
+    public enum Task {
+        NONE, WALK, TURN, LOOK_AROUND, LOOK_AT, FOLLOW, CONVERSATION;
     }
 
     public enum EntityFlag {
@@ -274,7 +446,7 @@ public final class NPC {
         }
     }
 
-    static final class DataType<T> {
+    public static final class DataType<T> {
         public static final DataType<Byte> BYTE = new DataType<>(DataWatcherRegistry.a);
         public static final DataType<Integer> INTEGER = new DataType<>(DataWatcherRegistry.b);
         public static final DataType<Float> FLOAT = new DataType<>(DataWatcherRegistry.c);
@@ -297,7 +469,7 @@ public final class NPC {
         }
     }
 
-    public enum DataVar {
+    public static enum DataVar {
         ENTITY_FLAGS(0, DataType.BYTE, (byte)0), //mask
         ENTITY_AIR(1, DataType.INTEGER, (int)300),
         ENTITY_CUSTOM_NAME(2, DataType.OPT_CHAT, Optional.empty()),
@@ -442,12 +614,15 @@ public final class NPC {
     }
 
     @RequiredArgsConstructor
-    public static class DataValue {
+    public static final class DataValue {
         public final DataVar variable;
         public final Object value;
     }
 
-    final class EntityData implements Cloneable {
+    /**
+     * This replaces nms.DataWatcher.
+     */
+    public final class EntityData implements Cloneable {
         private final Map<Integer, DataValue> data = new HashMap<>();
 
         @Override
@@ -529,6 +704,11 @@ public final class NPC {
         }
     }
 
+    /**
+     * A quick and dirty replacement for DataWatcher which returns
+     * whichever list of Items it is given.  This way, we can create
+     * custom data packets without reflection.
+     */
     private static class DummyDataWatcher extends DataWatcher {
         final List<DataWatcher.Item<?>> list;
 
@@ -551,125 +731,173 @@ public final class NPC {
         @Override public void e() { }
     };
 
-    public NPC(Type type, Location location, String name, PlayerSkin playerSkin) {
-        this.type = type;
-        this.location = location;
-        this.playerSkin = null;
-        final MinecraftServer minecraftServer = ((CraftServer)Bukkit.getServer()).getServer();
-        final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
+    // -- Public control methods, intended to be called by NPCManager.
+
+    /**
+     * Call once per tick.  Slower calling may preserve CPU time but
+     * reduce simulation speed.
+     */
+    public void tick() {
+        delegate.onTick();
+        if (job != null) performJob();
+        updateMovement();
+        updateWatchers();
+        ticksLived += 1;
+        if (lifespan > 0 && lifespan < ticksLived) disable();
+    }
+
+    /**
+     * Schedule any required movement packets.  This method is called
+     * by tick() and must be called regularly to make sure watching
+     * players are updated.
+     */
+    public void updateMovement() {
+        boolean didMove =
+            location.getX() != lastLocation.getX()
+            || location.getY() != lastLocation.getY()
+            || location.getZ() != lastLocation.getZ();
+        boolean didTurn;
         switch (type) {
-        case PLAYER:
-            UUID uuid;
-            if (true) {
-                long lower = ThreadLocalRandom.current().nextLong();
-                long upper = ThreadLocalRandom.current().nextLong();
-                long versionMask = 0x000000000000F000;
-                long versionFlag = 0x0000000000002000;
-                upper &= ~versionMask;
-                upper |= versionFlag;
-                uuid = new UUID(upper, lower);
-            } else {
-                uuid = UUID.fromString("00000000-0000-2000-0000-000000000000");
+        case PLAYER: case MOB:
+            didTurn = forceLookUpdate
+                || location.getPitch() != lastLocation.getPitch()
+                || location.getYaw() != lastLocation.getYaw();
+            forceLookUpdate = false;
+            break;
+        case BLOCK: case ITEM: case MARKER: default:
+            didTurn = false;
+        }
+        if (didTurn) {
+            if (location.getYaw() > 360.0f) {
+                location.setYaw(location.getYaw() - 360.0f);
+            } else if (location.getYaw() < 0.0f) {
+                location.setYaw(location.getYaw() + 360.0f);
             }
-            final GameProfile profile = new GameProfile(uuid, name);
-            EntityPlayer entityPlayer = new EntityPlayer(minecraftServer, worldServer, profile, new PlayerInteractManager(worldServer));
-            entityPlayer.listName = new ChatComponentText("");
-            entity = entityPlayer;
-            id = entity.getId();
-            this.name = name;
+        }
+        boolean didMoveHead = headYaw != lastHeadYaw;
+        double distance = lastLocation.distanceSquared(location);
+        boolean doTeleport = forceTeleport
+            || ticksLived == 0
+            || didMove && distance >= 64
+            || locationError >= 0.125
+            || locationMoved > 1024.0
+            || !didMove && locationMoved > 16.0;
+        if (doTeleport) {
+            forceTeleport = false;
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
-            if (playerSkin != null) {
-                profile.getProperties().put("texture", new Property("textures", playerSkin.texture, playerSkin.signature));
-            }
-            // Set all skin layers visible
-            entityData.setFlag(DataVar.PLAYER_SKIN_PARTS, EntityFlag.PLAYER_SKIN_ALL, true);
-            break;
-        default:
-            throw new IllegalArgumentException("NPC(Type, Location): wrong constructor for type " + type);
-        }
-    }
-
-    public NPC(Type type, Location location, EntityType entityType) {
-        this.type = type;
-        this.location = location;
-        this.entityType = entityType;
-        final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
-        switch (type) {
-        case MOB:
-            entity = EntityTypes.a(entityType.getName()).a(worldServer);
-            id = entity.getId();
-            name = entity.getUniqueID().toString().replace("-", "");
+            packets.add(new PacketPlayOutEntityTeleport(entity));
+            trackLocation = location.clone();
+            locationError = 0.0;
+            locationMoved = 0.0;
+        } else if (didMove && didTurn) {
+            long dx = (long)((location.getX() * 32.0 - lastLocation.getX() * 32.0) * 128.0);
+            long dy = (long)((location.getY() * 32.0 - lastLocation.getY() * 32.0) * 128.0);
+            long dz = (long)((location.getZ() * 32.0 - lastLocation.getZ() * 32.0) * 128.0);
+            packets.add(new PacketPlayOutEntity.PacketPlayOutRelEntityMoveLook(entity.getId(), dx, dy, dz,
+                                                                               (byte)((int)(location.getYaw() * 256.0f / 360.0f)),
+                                                                               (byte)((int)(location.getPitch() * 256.0f / 360.0f)),
+                                                                               onGround)); // onGround
+            trackLocation = trackLocation.add((double)dx / 4096.0, (double)dy / 4096.0, (double)dz / 4096.0);
+            entity.setPositionRotation(trackLocation.getX(), trackLocation.getY(), trackLocation.getZ(), location.getYaw(), location.getPitch());
+            locationError = trackLocation.distanceSquared(location);
+            locationMoved += Math.sqrt(distance);
+        } else if (didMove) {
+            long dx = (long)((location.getX() * 32.0 - lastLocation.getX() * 32.0) * 128.0);
+            long dy = (long)((location.getY() * 32.0 - lastLocation.getY() * 32.0) * 128.0);
+            long dz = (long)((location.getZ() * 32.0 - lastLocation.getZ() * 32.0) * 128.0);
+            packets.add(new PacketPlayOutEntity.PacketPlayOutRelEntityMove(entity.getId(), dx, dy, dz,
+                                                                           onGround)); // onGround
+            trackLocation = trackLocation.add((double)dx / 4096.0, (double)dy / 4096.0, (double)dz / 4096.0);
+            entity.setPosition(trackLocation.getX(), trackLocation.getY(), trackLocation.getZ());
+            locationError = trackLocation.distanceSquared(location);
+            locationMoved += Math.sqrt(distance);
+        } else if (didTurn) {
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
-            if (entityType == EntityType.BAT) {
-                entityData.setFlag(DataVar.BAT_FLAGS, EntityFlag.BAT_HANGING, false);
+            packets.add(new PacketPlayOutEntity.PacketPlayOutEntityLook(entity.getId(),
+                                                                        (byte)((int)(location.getYaw() * 256.0f / 360.0f)),
+                                                                        (byte)((int)(location.getPitch() * 256.0f / 360.0f)),
+                                                                        onGround)); // onGround
+        } else {
+            packets.add(new PacketPlayOutEntity(entity.getId()));
+        }
+        if (headYaw != lastHeadYaw) {
+            packets.add(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
+            lastHeadYaw = headYaw;
+        }
+        if (didMove) updateChunkLocation();
+        lastLocation = location.clone();
+    }
+
+    /**
+     * Send all scheduled packets and remove sent packets from the
+     * scheduler.  This method is called by tick().  It must be called
+     * regularly, every time updateMovement() is called to ensure that
+     * packets are actually sent to watching players.
+     */
+    public void updateWatchers() {
+        Set<UUID> watcherIds = new HashSet<>();
+        for (Iterator<Map.Entry<UUID, Watcher>> iter = watchers.entrySet().iterator(); iter.hasNext();) {
+            Watcher watcher = iter.next().getValue();
+            // Weed out players
+            // Note: We are adding even players which will have been removed
+            watcherIds.add(watcher.player.getUniqueId());
+            if (!watcher.player.isValid()) {
+                iter.remove();
+                continue;
             }
-            break;
-        default:
-            throw new IllegalArgumentException("NPC(Type, Location, EntityType): wrong constructor for type " + type);
+            if (!watcher.player.getWorld().equals(location.getWorld())
+                || watcher.player.getLocation().distanceSquared(location) > viewDistanceSquared) {
+                stopWatch(watcher);
+                iter.remove();
+                continue;
+            }
+            PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
+            if (type == Type.PLAYER) {
+                if (hideNameTag) {
+                    Scoreboard scoreboard = watcher.player.getScoreboard();
+                    Team team = scoreboard.getTeam(TEAM_NAME);
+                    if (team == null) {
+                        team = scoreboard.registerNewTeam(TEAM_NAME);
+                        team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+                    }
+                    if (!team.hasEntry(name)) team.addEntry(name);
+                }
+                // Update skin every now and then
+                if (watcher.setPlayerSkin == watcher.ticksLived) {
+                    watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20) + ThreadLocalRandom.current().nextInt(20);
+                    watcher.unsetPlayerSkin = watcher.ticksLived + 4L;
+                    packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
+                }
+                if (watcher.unsetPlayerSkin == watcher.ticksLived) {
+                    watcher.unsetPlayerSkin = -1;
+                    packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
+                }
+            }
+            // Send scheduled packets
+            Packet packet;
+            while (null != (packet = watcher.packets.deal())) {
+                connection.sendPacket(packet);
+            }
+            while (null != (packet = packets.deal())) {
+                connection.sendPacket(packet);
+            }
+            watcher.ticksLived += 1;
         }
+        // Find new players
+        for (Player player: location.getWorld().getPlayers()) {
+            if (!watcherIds.contains(player.getUniqueId())
+                && player.getLocation().distanceSquared(location) < viewDistanceSquared) {
+                if (!exclusive.isEmpty() && !exclusive.contains(player.getUniqueId())) continue;
+                if (!delegate.onPlayerAdd(player)) continue;
+                Watcher watcher = new Watcher(player);
+                watchers.put(player.getUniqueId(), watcher);
+                startWatch(watcher);
+            }
+        }
+        if (watchers.isEmpty() && removeWhenUnwatched) valid = false;
     }
 
-    public NPC(Type type, Location location, org.bukkit.block.data.BlockData blockData) {
-        this.type = type;
-        this.location = location;
-        this.blockData = blockData;
-        switch (type) {
-        case BLOCK:
-            final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
-            entity = new EntityFallingBlock(worldServer, location.getX(), location.getY(), location.getZ(), ((CraftBlockData)blockData).getState());
-            id = entity.getId();
-            name = entity.getUniqueID().toString().replace("-", "");
-            entityData.set(DataVar.ENTITY_NO_GRAVITY, true);
-            entity.setPosition(location.getX(), location.getY(), location.getZ());
-            break;
-        default:
-            throw new IllegalArgumentException("NPC(Type, Location, BlockData): wrong constructor for type " + type);
-        }
-    }
-
-    public NPC(Type type, Location location, org.bukkit.inventory.ItemStack itemStack) {
-        this.type = type;
-        this.location = location;
-        switch (type) {
-        case ITEM:
-            final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
-            this.itemStack = itemStack;
-            ItemStack nmsItem = CraftItemStack.asNMSCopy(itemStack);
-            entity = new EntityItem(worldServer, location.getX(), location.getY(), location.getZ(), nmsItem);
-            id = entity.getId();
-            name = entity.getUniqueID().toString().replace("-", "");
-            entity.motX = 0.0;
-            entity.motY = 0.0;
-            entity.motZ = 0.0;
-            entityData.set(DataVar.ENTITY_NO_GRAVITY, true);
-            entityData.set(DataVar.ITEM_ITEM, nmsItem);
-            break;
-        default:
-            throw new IllegalArgumentException("NPC(Type, Location, ItemStack): wrong constructor for type " + type);
-        }
-    }
-
-    public NPC(Type type, Location location, String text, long lifespan) {
-        this.type = type;
-        this.location = location;
-        switch (type) {
-        case MARKER:
-            final WorldServer worldServer = ((CraftWorld)location.getWorld()).getHandle();
-            entity = new EntityArmorStand(worldServer, location.getX(), location.getY(), location.getZ());
-            id = entity.getId();
-            name = entity.getUniqueID().toString().replace("-", "");
-            entityData.set(DataVar.ENTITY_NO_GRAVITY, true);
-            entityData.set(DataVar.ENTITY_CUSTOM_NAME_VISIBLE, true);
-            entityData.setFlags(DataVar.ENTITY_FLAGS, EntityFlag.ENTITY_INVISIBLE);
-            entityData.setFlags(DataVar.ARMOR_STAND_FLAGS, EntityFlag.ARMOR_STAND_NO_BASEPLATE, EntityFlag.ARMOR_STAND_MARKER);
-            updateCustomName(text);
-            job = Job.RELATIVE;
-            this.lifespan = lifespan;
-            break;
-        default:
-            throw new IllegalArgumentException("NPC(Type, Location, String): wrong consturctor for type " + type);
-        }
-    }
+    // -- Public utility
 
     public String getDescription() {
         StringBuilder sb = new StringBuilder("id#" + id + " " + type.name());
@@ -698,45 +926,9 @@ public final class NPC {
         return sb.toString();
     }
 
-    // Overridable Delegate methods
+    // -- Internal methods intended to be called by NPCManager.  Only call if you know what you are doing.
 
-    public interface Delegate {
-        void onTick();
-
-        /**
-         * Called when the NPC is added to the list of NPCs, before it is
-         * ticked for the first time
-         */
-        default void onEnable() { }
-
-        /**
-         * Called when the NPC is removed from the list of NPCs, after it
-         * was ticked for the final time.
-         */
-        default void onDisable() { }
-
-        default boolean canMoveIn(org.bukkit.block.Block block) {
-            return true;
-        }
-
-        default boolean canMoveOn(org.bukkit.block.Block block) {
-            return true;
-        }
-
-        default boolean onInteract(Player player, boolean rightClick) {
-            return true;
-        }
-
-        default boolean onPlayerAdd(Player player) {
-            return true;
-        }
-
-        default void onPlayerRemove(Player player) { }
-    }
-
-    // Internal methods
-
-    void enable() {
+    public void enable() {
         lastLocation = location.clone();
         trackLocation = location.clone();
         headYaw = location.getYaw();
@@ -746,7 +938,7 @@ public final class NPC {
         delegate.onEnable();
     }
 
-    void disable() {
+    public void disable() {
         delegate.onDisable();
         for (Watcher watcher: watchers.values()) {
             if (!watcher.player.isValid()) continue;
@@ -761,126 +953,41 @@ public final class NPC {
         lastInteract = ticksLived;
         Watcher watcher = watchers.get(player.getUniqueId());
         if (watcher == null) return;
+        if (type == Type.PLAYER && watcher.unsetPlayerSkin <= 0) watcher.setPlayerSkin = ticksLived;
         boolean res = delegate.onInteract(player, rightClick);
-        if (type == Type.PLAYER) {
-            if (watcher.unsetPlayerSkin < 0) watcher.setPlayerSkin = watcher.ticksLived;
-        }
-        for (DataValue dv: entityData.data.values()) {
-            player.sendMessage(dv.variable.name() + " " + dv.value);
-        }
-    }
-
-    private void startWatch(Watcher watcher) {
-        PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
-        switch (type) {
-        case PLAYER:
-            connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
-            connection.sendPacket(new PacketPlayOutNamedEntitySpawn((EntityPlayer)entity));
-            watcher.setPlayerSkin = 0;
-            if (hideNameTag) {
-                Scoreboard scoreboard = watcher.player.getScoreboard();
-                Team team = scoreboard.getTeam(TEAM_NAME);
-                if (team == null) {
-                    team = scoreboard.registerNewTeam(TEAM_NAME);
-                    team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
-                }
-                if (!team.hasEntry(name)) team.addEntry(name);
+        // Begin conversation
+        if (conversation != null && conversation.isValid()) return;
+        Conversation old = Conversation.of(player, manager);
+        if ((old == null || !old.isExclusive()) && res && conversation == null && speech != null) {
+            // Cancel player's old conversation if it allows it (exclusive flag)
+            if (old != null) {
+                old.disable();
             }
-            connection.sendPacket(entityData.makeMetadataPacket());
-            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
-            break;
-        case MOB: case MARKER:
-            connection.sendPacket(new PacketPlayOutSpawnEntityLiving((EntityLiving)entity));
-            connection.sendPacket(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
-            if (!entityData.isEmpty()) {
-                if (watcher.entityData.isEmpty()) {
-                    connection.sendPacket(entityData.makeMetadataPacket());
-                } else {
-                    EntityData newEntityData = entityData.clone();
-                    newEntityData.overwriteWith(watcher.entityData);
-                    connection.sendPacket(newEntityData.makeMetadataPacket());
-                }
-            }
-            break;
-        case BLOCK:
-            connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 70, Block.REGISTRY_ID.getId(((CraftBlockData)blockData).getState())));
-            connection.sendPacket(entityData.makeMetadataPacket());
-            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
-            break;
-        case ITEM:
-            connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 2));
-            connection.sendPacket(entityData.makeMetadataPacket());
-            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
-            break;
-        default:
-            throw new IllegalStateException("Unhandled type: " + type);
+            Conversation convo = new Conversation(manager);
+            convo.add(player);
+            convo.add(this);
+            convo.simple(speech);
+            manager.enableConversation(convo);
         }
     }
 
-    private void stopWatch(Watcher watcher) {
-        PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
-        switch (type) {
-        case PLAYER:
-            connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
-            connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
-            break;
-        case MOB: case MARKER: case BLOCK: case ITEM:
-            connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
-            break;
-        default:
-            throw new IllegalStateException("Unhandled type: " + type);
-        }
+    void beginConversation(Conversation conversation) {
+        this.conversation = conversation;
+        task = Task.CONVERSATION;
+        delegate.onBeginConversation(conversation);
     }
 
-    public boolean isBlockedAt(Location entityLocation) {
-        float width2 = entity.width * 0.5f;
-        float height = entity.length;
-        Location locA = entityLocation.clone().add(-width2, 0.0, -width2);
-        Location locB = entityLocation.clone().add(width2, height, width2);
-        int ax = locA.getBlockX();
-        int bx = locB.getBlockX();
-        int ay = locA.getBlockY();
-        int by = locB.getBlockY();
-        int az = locA.getBlockZ();
-        int bz = locB.getBlockZ();
-        for (int y = ay; y <= by; y += 1) {
-            for (int z = az; z <= bz; z += 1) {
-                for (int x = ax; x <= bx; x += 1) {
-                    org.bukkit.block.Block block = entityLocation.getWorld().getBlockAt(x, y, z);
-                    if (block.isEmpty()) continue;
-                    org.bukkit.Material mat = block.getType();
-                    if (Tag.SLABS.isTagged(mat)
-                        && ((Slab)block.getBlockData()).getType() == Slab.Type.BOTTOM
-                        && entityLocation.getY() - (double)y >= 0.5) {
-                        continue;
-                    }
-                    // if (Tag.STAIRS.isTagged(mat)
-                    //     && ((Stairs)block.getBlockData()).getHalf() == Bisected.Half.BOTTOM
-                    //     && entityLocation.getY() - (double)y >= 0.5) {
-                    //     continue;
-                    // }
-                    if (mat.isOccluding()) return true;
-                    if (mat.isSolid()) return true;
-                }
-            }
-        }
-        return false;
+    void endConversation(Conversation conversation) {
+        delegate.onEndConversation(conversation);
     }
 
-    public void tick() {
-        delegate.onTick();
-        if (job != null) performJob();
-        updateMovement();
-        updateWatchers();
-        ticksLived += 1;
-        if (lifespan > 0 && lifespan < ticksLived) valid = false;
-    }
+    // -- Public simulation methods for moving around the world.  Jobs and tasks included.
 
     public void performJob() {
         switch (job) {
         case NONE: return;
         case WANDER:
-            if (turn <= 0) {
+            if (task != Task.CONVERSATION && turn <= 0) {
                 if (task == null) task = Task.NONE;
                 switch (task) {
                 case WALK:
@@ -946,6 +1053,14 @@ public final class NPC {
             location.setYaw((float)headYaw);
             break;
         case RELATIVE:
+            // Inherit follow data from expired followed NPC. Consider
+            // making this conditional
+            if (followNPC != null && !followNPC.valid) {
+                this.followEntity = followNPC.followEntity;
+                this.followOffset = followNPC.followOffset;
+                this.followLocation = followNPC.followLocation;
+                this.followNPC = followNPC.followNPC;
+            }
             if (followEntity != null) {
                 location = followEntity.getLocation();
             } else if (followNPC != null && followNPC.valid) {
@@ -1027,161 +1142,55 @@ public final class NPC {
             }
             if (!didMoveVertical && follow.distanceSquared(location) >= followDistanceSquared) walkForward();
             break;
+        case CONVERSATION:
+            if (conversation != null) {
+                if (!conversation.getPlayers().isEmpty()) {
+                    lookAt(conversation.getPlayers().get(0).getEyeLocation());
+                }
+            } else {
+                task = Task.NONE;
+            }
+            break;
+        case NONE:
+            break;
         default:
             throw new IllegalStateException("Unhandled Task: " + task);
         }
     }
 
-    public void lookRandom() {
-        double yaw = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
-        double pitch = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
-        headYaw = (double)location.getYaw() + yaw;
-        location.setPitch((float)pitch);
-    }
-
-    public void swingArm(boolean mainHand) {
-        packets.add(new PacketPlayOutAnimation(entity, mainHand ? 0 : 3));
-    }
-
-    public void updateData(long delay) {
-        PacketPlayOutEntityMetadata packet = null;
-        for (Watcher watcher: watchers.values()) {
-            if (watcher.entityData.isEmpty()) {
-                if (packet == null) packet = entityData.makeMetadataPacket();
-                watcher.packets.add(packet, delay);
-            } else {
-                EntityData newEntityData = entityData.clone();
-                newEntityData.overwriteWith(watcher.entityData);
-                watcher.packets.add(newEntityData.makeMetadataPacket(), delay);
-            }
-        }
-    }
-
-    public void updateData(Player player, long delay) {
-        Watcher watcher = watchers.get(player.getUniqueId());
-        if (watcher == null) return;
-        if (watcher.entityData.isEmpty()) {
-            watcher.packets.add(entityData.makeMetadataPacket(), delay);
-        } else {
-            EntityData newEntityData = entityData.clone();
-            newEntityData.overwriteWith(watcher.entityData);
-            watcher.packets.add(newEntityData.makeMetadataPacket(), delay);
-        }
-    }
-
-    PacketPlayOutEntityMetadata makeMetadataPacket(DataVar variable, Object value) {
-        List<DataWatcher.Item<?>> list = Arrays.asList(new DataWatcher.Item(variable.dataWatcherObject, value));
-        DummyDataWatcher dummy = new DummyDataWatcher(list);
-        return new PacketPlayOutEntityMetadata(id, dummy, false);
-    }
-
-    // Data getters and setters
-
-    public void setViewDistance(double viewDist) {
-        viewDistance = viewDist;
-        viewDistanceSquared = viewDist * viewDist;
-    }
-
-    public void setFollowDistance(double followDist) {
-        followDistance = followDist;
-        followDistanceSquared = followDist * followDist;
-    }
-
-    public void setData(DataVar variable, Object value) {
-        if (value == null) {
-            entityData.unset(variable);
-            for (Watcher watcher: watchers.values()) {
-                watcher.entityData.unset(variable);
-            }
-        } else {
-            entityData.set(variable, value);
-            for (Watcher watcher: watchers.values()) {
-                if (watcher.entityData.isSet(variable)) {
-                    watcher.entityData.set(variable, value);
+    public boolean isBlockedAt(Location entityLocation) {
+        float width2 = entity.width * 0.5f;
+        float height = entity.length;
+        Location locA = entityLocation.clone().add(-width2, 0.0, -width2);
+        Location locB = entityLocation.clone().add(width2, height, width2);
+        int ax = locA.getBlockX();
+        int bx = locB.getBlockX();
+        int ay = locA.getBlockY();
+        int by = locB.getBlockY();
+        int az = locA.getBlockZ();
+        int bz = locB.getBlockZ();
+        for (int y = ay; y <= by; y += 1) {
+            for (int z = az; z <= bz; z += 1) {
+                for (int x = ax; x <= bx; x += 1) {
+                    org.bukkit.block.Block block = entityLocation.getWorld().getBlockAt(x, y, z);
+                    if (block.isEmpty()) continue;
+                    org.bukkit.Material mat = block.getType();
+                    if (Tag.SLABS.isTagged(mat)
+                        && ((Slab)block.getBlockData()).getType() == Slab.Type.BOTTOM
+                        && entityLocation.getY() - (double)y >= 0.5) {
+                        continue;
+                    }
+                    // if (Tag.STAIRS.isTagged(mat)
+                    //     && ((Stairs)block.getBlockData()).getHalf() == Bisected.Half.BOTTOM
+                    //     && entityLocation.getY() - (double)y >= 0.5) {
+                    //     continue;
+                    // }
+                    if (mat.isOccluding()) return true;
+                    if (mat.isSolid()) return true;
                 }
             }
         }
-    }
-
-    public void setData(Player player, DataVar variable, Object value) {
-        Watcher watcher = watchers.get(player.getUniqueId());
-        if (watcher == null) return;
-        if (value == null) {
-            watcher.entityData.unset(variable);
-        } else {
-            watcher.entityData.set(variable, value);
-        }
-    }
-
-    public boolean getFlag(DataVar variable, EntityFlag entityFlag) {
-        return entityData.getFlag(variable, entityFlag);
-    }
-
-    public void setFlag(DataVar variable, EntityFlag entityFlag, boolean value) {
-        entityData.setFlag(variable, entityFlag, value);
-        for (Watcher watcher: watchers.values()) {
-            if (watcher.entityData.isSet(variable)) {
-                watcher.entityData.setFlag(variable, entityFlag, value);
-            }
-        }
-    }
-
-    public void setFlag(Player player, DataVar variable, EntityFlag entityFlag, boolean value) {
-        Watcher watcher = watchers.get(player.getUniqueId());
-        if (watcher == null) return;
-        if (!watcher.entityData.isSet(variable)) {
-            // Initialize with global value
-            watcher.entityData.set(variable, entityData.get(variable));
-        }
-        watcher.entityData.setFlag(variable, entityFlag, value);
-    }
-
-    public void sendData(DataVar variable, Object value, long delay) {
-        if (watchers.isEmpty()) return;
-        packets.add(makeMetadataPacket(variable, value), delay);
-    }
-
-    public void sendData(Player player, DataVar variable, Object value, long delay) {
-        if (watchers.isEmpty()) return;
-        Watcher watcher = watchers.get(player.getUniqueId());
-        if (watcher == null) return;
-        watcher.packets.add(makeMetadataPacket(variable, value), delay);
-    }
-
-    public void resetData() {
-        entityData.reset();
-        for (Watcher watcher: watchers.values()) watcher.entityData.reset();
-    }
-
-    public void resetData(Player player) {
-        Watcher watcher = watchers.get(player.getUniqueId());
-        if (watcher != null) watcher.entityData.reset();
-    }
-
-    public void sendFlag(DataVar variable, EntityFlag flag, boolean value, long delay) {
-        if (watchers.isEmpty()) return;
-        final int baseValue = ((Byte)entityData.get(variable)).intValue();
-        for (Watcher watcher: watchers.values()) {
-            int bitMask;
-            if (watcher.entityData.isSet(variable)) {
-                bitMask = ((Byte)watcher.entityData.get(variable)).intValue();
-            } else {
-                bitMask = baseValue;
-            }
-            if (value) {
-                bitMask |= flag.bitMask;
-            } else {
-                bitMask &= ~flag.bitMask;
-            }
-            watcher.packets.add(makeMetadataPacket(variable, (byte)bitMask), delay);
-        }
-    }
-
-    public void updateCustomName(String name) {
-        ChatComponentText txt = new ChatComponentText(ChatColor.translateAlternateColorCodes('&', name));
-        setData(DataVar.ENTITY_CUSTOM_NAME, Optional.of(txt));
-        if (watchers.isEmpty()) return;
-        sendData(DataVar.ENTITY_CUSTOM_NAME, Optional.of(txt), 0L);
+        return false;
     }
 
     /** Return true if npc moved upward */
@@ -1191,10 +1200,6 @@ public final class NPC {
             return true;
         }
         return false;
-    }
-
-    public Location getHeadLocation() {
-        return location.clone().add(0.0, entity.length, 0.0);
     }
 
     /** Return true if npc moved downward */
@@ -1306,152 +1311,17 @@ public final class NPC {
         return true;
     }
 
-    public void updateMovement() {
-        boolean didMove =
-            location.getX() != lastLocation.getX()
-            || location.getY() != lastLocation.getY()
-            || location.getZ() != lastLocation.getZ();
-        boolean didTurn;
-        switch (type) {
-        case PLAYER: case MOB:
-            didTurn = forceLookUpdate
-                || location.getPitch() != lastLocation.getPitch()
-                || location.getYaw() != lastLocation.getYaw();
-            forceLookUpdate = false;
-            break;
-        case BLOCK: case ITEM: case MARKER: default:
-            didTurn = false;
-        }
-        if (didTurn) {
-            if (location.getYaw() > 360.0f) {
-                location.setYaw(location.getYaw() - 360.0f);
-            } else if (location.getYaw() < 0.0f) {
-                location.setYaw(location.getYaw() + 360.0f);
-            }
-        }
-        boolean didMoveHead = headYaw != lastHeadYaw;
-        double distance = lastLocation.distanceSquared(location);
-        boolean doTeleport = forceTeleport
-            || ticksLived == 0
-            || didMove && distance >= 64
-            || locationError >= 0.125
-            || locationMoved > 1024.0
-            || !didMove && locationMoved > 16.0;
-        if (doTeleport) {
-            forceTeleport = false;
-            entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
-            packets.add(new PacketPlayOutEntityTeleport(entity));
-            trackLocation = location.clone();
-            locationError = 0.0;
-            locationMoved = 0.0;
-        } else if (didMove && didTurn) {
-            long dx = (long)((location.getX() * 32.0 - lastLocation.getX() * 32.0) * 128.0);
-            long dy = (long)((location.getY() * 32.0 - lastLocation.getY() * 32.0) * 128.0);
-            long dz = (long)((location.getZ() * 32.0 - lastLocation.getZ() * 32.0) * 128.0);
-            packets.add(new PacketPlayOutEntity.PacketPlayOutRelEntityMoveLook(entity.getId(), dx, dy, dz,
-                                                                               (byte)((int)(location.getYaw() * 256.0f / 360.0f)),
-                                                                               (byte)((int)(location.getPitch() * 256.0f / 360.0f)),
-                                                                               onGround)); // onGround
-            trackLocation = trackLocation.add((double)dx / 4096.0, (double)dy / 4096.0, (double)dz / 4096.0);
-            entity.setPositionRotation(trackLocation.getX(), trackLocation.getY(), trackLocation.getZ(), location.getYaw(), location.getPitch());
-            locationError = trackLocation.distanceSquared(location);
-            locationMoved += Math.sqrt(distance);
-        } else if (didMove) {
-            long dx = (long)((location.getX() * 32.0 - lastLocation.getX() * 32.0) * 128.0);
-            long dy = (long)((location.getY() * 32.0 - lastLocation.getY() * 32.0) * 128.0);
-            long dz = (long)((location.getZ() * 32.0 - lastLocation.getZ() * 32.0) * 128.0);
-            packets.add(new PacketPlayOutEntity.PacketPlayOutRelEntityMove(entity.getId(), dx, dy, dz,
-                                                                           onGround)); // onGround
-            trackLocation = trackLocation.add((double)dx / 4096.0, (double)dy / 4096.0, (double)dz / 4096.0);
-            entity.setPosition(trackLocation.getX(), trackLocation.getY(), trackLocation.getZ());
-            locationError = trackLocation.distanceSquared(location);
-            locationMoved += Math.sqrt(distance);
-        } else if (didTurn) {
-            entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
-            packets.add(new PacketPlayOutEntity.PacketPlayOutEntityLook(entity.getId(),
-                                                                        (byte)((int)(location.getYaw() * 256.0f / 360.0f)),
-                                                                        (byte)((int)(location.getPitch() * 256.0f / 360.0f)),
-                                                                        onGround)); // onGround
-        } else {
-            packets.add(new PacketPlayOutEntity(entity.getId()));
-        }
-        if (headYaw != lastHeadYaw) {
-            packets.add(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
-            lastHeadYaw = headYaw;
-        }
-        if (didMove) updateChunkLocation();
-        lastLocation = location.clone();
+    public void lookRandom() {
+        double yaw = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
+        double pitch = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
+        headYaw = (double)location.getYaw() + yaw;
+        location.setPitch((float)pitch);
     }
 
-    public void updateWatchers() {
-        Set<UUID> watcherIds = new HashSet<>();
-        for (Iterator<Map.Entry<UUID, Watcher>> iter = watchers.entrySet().iterator(); iter.hasNext();) {
-            Watcher watcher = iter.next().getValue();
-            // Weed out players
-            // Note: We are adding even players which will have been removed
-            watcherIds.add(watcher.player.getUniqueId());
-            if (!watcher.player.isValid()) {
-                iter.remove();
-                continue;
-            }
-            if (!watcher.player.getWorld().equals(location.getWorld())
-                || watcher.player.getLocation().distanceSquared(location) > viewDistanceSquared) {
-                stopWatch(watcher);
-                iter.remove();
-                continue;
-            }
-            PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
-            if (type == Type.PLAYER) {
-                if (hideNameTag) {
-                    Scoreboard scoreboard = watcher.player.getScoreboard();
-                    Team team = scoreboard.getTeam(TEAM_NAME);
-                    if (team == null) {
-                        team = scoreboard.registerNewTeam(TEAM_NAME);
-                        team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
-                    }
-                    if (!team.hasEntry(name)) team.addEntry(name);
-                }
-                // Update skin every now and then
-                if (watcher.setPlayerSkin == watcher.ticksLived) {
-                    watcher.setPlayerSkin = Math.max(watcher.setPlayerSkin * 2, 20) + ThreadLocalRandom.current().nextInt(20);
-                    watcher.unsetPlayerSkin = watcher.ticksLived + 4L;
-                    packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
-                }
-                if (watcher.unsetPlayerSkin == watcher.ticksLived) {
-                    watcher.unsetPlayerSkin = -1;
-                    packets.add(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
-                }
-            }
-            // Send scheduled packets
-            Packet packet;
-            while (null != (packet = watcher.packets.deal())) {
-                connection.sendPacket(packet);
-            }
-            while (null != (packet = packets.deal())) {
-                connection.sendPacket(packet);
-            }
-            watcher.ticksLived += 1;
-        }
-        // Find new players
-        for (Player player: location.getWorld().getPlayers()) {
-            if (!watcherIds.contains(player.getUniqueId())
-                && player.getLocation().distanceSquared(location) < viewDistanceSquared) {
-                if (!exclusive.isEmpty() && !exclusive.contains(player.getUniqueId())) continue;
-                if (!delegate.onPlayerAdd(player)) continue;
-                Watcher watcher = new Watcher(player);
-                watchers.put(player.getUniqueId(), watcher);
-                startWatch(watcher);
-            }
-        }
-        if (watchers.isEmpty() && removeWhenUnwatched) valid = false;
-    }
-
-    private void updateChunkLocation() {
-        if (chunkLocation != null) {
-            GLOBAL_CACHE.getNPCsIn(chunkLocation).remove(this);
-        }
-        chunkLocation = location.getChunk();
-        GLOBAL_CACHE.getNPCsIn(chunkLocation).add(this);
+    public void lookAt(Location lookAt) {
+        Vector dir = lookAt.subtract(getEyeLocation()).toVector();
+        location.setDirection(dir);
+        headYaw = (double)location.getYaw();
     }
 
     public boolean collidesWithOtherAt(Location at) {
@@ -1490,5 +1360,251 @@ public final class NPC {
     public List<NPC> getNearbyNPCs() {
         if (chunkLocation == null) updateChunkLocation();
         return GLOBAL_CACHE.getNPCsIn(chunkLocation);
+    }
+
+    // -- Public getters and setters
+
+    public void setViewDistance(double viewDist) {
+        viewDistance = viewDist;
+        viewDistanceSquared = viewDist * viewDist;
+    }
+
+    public void setFollowDistance(double followDist) {
+        followDistance = followDist;
+        followDistanceSquared = followDist * followDist;
+    }
+
+    // -- Public data properties wrapping nms.DataWatcher
+
+    public void updateData(long delay) {
+        PacketPlayOutEntityMetadata packet = null;
+        for (Watcher watcher: watchers.values()) {
+            if (watcher.entityData.isEmpty()) {
+                if (packet == null) packet = entityData.makeMetadataPacket();
+                watcher.packets.add(packet, delay);
+            } else {
+                EntityData newEntityData = entityData.clone();
+                newEntityData.overwriteWith(watcher.entityData);
+                watcher.packets.add(newEntityData.makeMetadataPacket(), delay);
+            }
+        }
+    }
+
+    public void updateData(Player player, long delay) {
+        Watcher watcher = watchers.get(player.getUniqueId());
+        if (watcher == null) return;
+        if (watcher.entityData.isEmpty()) {
+            watcher.packets.add(entityData.makeMetadataPacket(), delay);
+        } else {
+            EntityData newEntityData = entityData.clone();
+            newEntityData.overwriteWith(watcher.entityData);
+            watcher.packets.add(newEntityData.makeMetadataPacket(), delay);
+        }
+    }
+
+    public void setData(DataVar variable, Object value) {
+        if (value == null) {
+            entityData.unset(variable);
+            for (Watcher watcher: watchers.values()) {
+                watcher.entityData.unset(variable);
+            }
+        } else {
+            entityData.set(variable, value);
+            for (Watcher watcher: watchers.values()) {
+                if (watcher.entityData.isSet(variable)) {
+                    watcher.entityData.set(variable, value);
+                }
+            }
+        }
+    }
+
+    public void setData(Player player, DataVar variable, Object value) {
+        Watcher watcher = watchers.get(player.getUniqueId());
+        if (watcher == null) return;
+        if (value == null) {
+            watcher.entityData.unset(variable);
+        } else {
+            watcher.entityData.set(variable, value);
+        }
+    }
+
+    public boolean getFlag(DataVar variable, EntityFlag entityFlag) {
+        return entityData.getFlag(variable, entityFlag);
+    }
+
+    public void setFlag(DataVar variable, EntityFlag entityFlag, boolean value) {
+        entityData.setFlag(variable, entityFlag, value);
+        for (Watcher watcher: watchers.values()) {
+            if (watcher.entityData.isSet(variable)) {
+                watcher.entityData.setFlag(variable, entityFlag, value);
+            }
+        }
+    }
+
+    public void setFlag(Player player, DataVar variable, EntityFlag entityFlag, boolean value) {
+        Watcher watcher = watchers.get(player.getUniqueId());
+        if (watcher == null) return;
+        if (!watcher.entityData.isSet(variable)) {
+            // Initialize with global value
+            watcher.entityData.set(variable, entityData.get(variable));
+        }
+        watcher.entityData.setFlag(variable, entityFlag, value);
+    }
+
+    public void sendData(DataVar variable, Object value, long delay) {
+        if (watchers.isEmpty()) return;
+        packets.add(makeMetadataPacket(variable, value), delay);
+    }
+
+    public void sendData(Player player, DataVar variable, Object value, long delay) {
+        if (watchers.isEmpty()) return;
+        Watcher watcher = watchers.get(player.getUniqueId());
+        if (watcher == null) return;
+        watcher.packets.add(makeMetadataPacket(variable, value), delay);
+    }
+
+    public void resetData() {
+        entityData.reset();
+        for (Watcher watcher: watchers.values()) watcher.entityData.reset();
+    }
+
+    public void resetData(Player player) {
+        Watcher watcher = watchers.get(player.getUniqueId());
+        if (watcher != null) watcher.entityData.reset();
+    }
+
+    public void sendFlag(DataVar variable, EntityFlag flag, boolean value, long delay) {
+        if (watchers.isEmpty()) return;
+        final int baseValue = ((Byte)entityData.get(variable)).intValue();
+        for (Watcher watcher: watchers.values()) {
+            int bitMask;
+            if (watcher.entityData.isSet(variable)) {
+                bitMask = ((Byte)watcher.entityData.get(variable)).intValue();
+            } else {
+                bitMask = baseValue;
+            }
+            if (value) {
+                bitMask |= flag.bitMask;
+            } else {
+                bitMask &= ~flag.bitMask;
+            }
+            watcher.packets.add(makeMetadataPacket(variable, (byte)bitMask), delay);
+        }
+    }
+
+    public void updateCustomName(String name) {
+        ChatComponentText txt = new ChatComponentText(ChatColor.translateAlternateColorCodes('&', name));
+        setData(DataVar.ENTITY_CUSTOM_NAME, Optional.of(txt));
+        if (watchers.isEmpty()) return;
+        sendData(DataVar.ENTITY_CUSTOM_NAME, Optional.of(txt), 0L);
+    }
+
+    public Location getHeadLocation() {
+        return location.clone().add(0.0, entity.length, 0.0);
+    }
+
+    public Location getEyeLocation() {
+        return location.clone().add(0.0, (double)entity.getHeadHeight(), 0.0);
+    }
+
+    public NPC addSpeechBubble(NPCManager manager, String text, Delegate del) {
+        NPC bubble = new NPC(manager, Type.MARKER, getHeadLocation().add(0.0, 0.2, 0.0), text);
+        bubble.job = Job.RELATIVE;
+        if (del != null) bubble.delegate = del;
+        bubble.followNPC = this;
+        bubble.followOffset = new Vector(0.0, entity.length + 0.2, 0.0);
+        bubble.lifespan = speechLifespan;
+        if (speechBubble != null && speechBubble.valid && speechBubble.job == Job.RELATIVE) {
+            speechBubble.followEntity = null;
+            speechBubble.followNPC = bubble;
+            speechBubble.followOffset = new Vector(0.0, 0.4, 0.0);
+        }
+        this.speechBubble = bubble;
+        manager.enableNPC(bubble);
+        return bubble;
+    }
+
+    // -- Animation
+
+    public void swingArm(boolean mainHand) {
+        packets.add(new PacketPlayOutAnimation(entity, mainHand ? 0 : 3));
+    }
+
+    // -- Private management and consistency
+
+    private void updateChunkLocation() {
+        if (chunkLocation != null) {
+            GLOBAL_CACHE.getNPCsIn(chunkLocation).remove(this);
+        }
+        chunkLocation = location.getChunk();
+        GLOBAL_CACHE.getNPCsIn(chunkLocation).add(this);
+    }
+
+    private PacketPlayOutEntityMetadata makeMetadataPacket(DataVar variable, Object value) {
+        List<DataWatcher.Item<?>> list = Arrays.asList(new DataWatcher.Item(variable.dataWatcherObject, value));
+        DummyDataWatcher dummy = new DummyDataWatcher(list);
+        return new PacketPlayOutEntityMetadata(id, dummy, false);
+    }
+
+    private void startWatch(Watcher watcher) {
+        PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
+        switch (type) {
+        case PLAYER:
+            connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.ADD_PLAYER, (EntityPlayer)entity));
+            connection.sendPacket(new PacketPlayOutNamedEntitySpawn((EntityPlayer)entity));
+            watcher.setPlayerSkin = 0;
+            if (hideNameTag) {
+                Scoreboard scoreboard = watcher.player.getScoreboard();
+                Team team = scoreboard.getTeam(TEAM_NAME);
+                if (team == null) {
+                    team = scoreboard.registerNewTeam(TEAM_NAME);
+                    team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+                }
+                if (!team.hasEntry(name)) team.addEntry(name);
+            }
+            connection.sendPacket(entityData.makeMetadataPacket());
+            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
+            break;
+        case MOB: case MARKER:
+            connection.sendPacket(new PacketPlayOutSpawnEntityLiving((EntityLiving)entity));
+            connection.sendPacket(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
+            if (!entityData.isEmpty()) {
+                if (watcher.entityData.isEmpty()) {
+                    connection.sendPacket(entityData.makeMetadataPacket());
+                } else {
+                    EntityData newEntityData = entityData.clone();
+                    newEntityData.overwriteWith(watcher.entityData);
+                    connection.sendPacket(newEntityData.makeMetadataPacket());
+                }
+            }
+            break;
+        case BLOCK:
+            connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 70, Block.REGISTRY_ID.getId(((CraftBlockData)blockData).getState())));
+            connection.sendPacket(entityData.makeMetadataPacket());
+            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
+            break;
+        case ITEM:
+            connection.sendPacket(new PacketPlayOutSpawnEntity(entity, 2));
+            connection.sendPacket(entityData.makeMetadataPacket());
+            connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
+            break;
+        default:
+            throw new IllegalStateException("Unhandled type: " + type);
+        }
+    }
+
+    private void stopWatch(Watcher watcher) {
+        PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;
+        switch (type) {
+        case PLAYER:
+            connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
+            connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
+            break;
+        case MOB: case MARKER: case BLOCK: case ITEM:
+            connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
+            break;
+        default:
+            throw new IllegalStateException("Unhandled type: " + type);
+        }
     }
 }

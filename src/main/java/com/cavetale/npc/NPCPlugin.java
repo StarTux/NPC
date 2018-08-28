@@ -19,22 +19,35 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.function.Consumer;
 import lombok.Getter;
-import net.minecraft.server.v1_13_R1.BlockPosition;
-import net.minecraft.server.v1_13_R1.PacketPlayInUseEntity;
-import net.minecraft.server.v1_13_R1.PacketPlayOutOpenSignEditor;
-import net.minecraft.server.v1_13_R1.PlayerConnection;
+import net.minecraft.server.v1_13_R2.BlockPosition;
+import net.minecraft.server.v1_13_R2.PacketPlayInUseEntity;
+import net.minecraft.server.v1_13_R2.PacketPlayOutOpenSignEditor;
+import net.minecraft.server.v1_13_R2.PlayerConnection;
+import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.craftbukkit.v1_13_R1.entity.CraftPlayer;
+import org.bukkit.craftbukkit.v1_13_R2.entity.CraftPlayer;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.java.annotation.command.Command;
+import org.bukkit.plugin.java.annotation.command.Commands;
+import org.bukkit.plugin.java.annotation.dependency.Dependency;
+import org.bukkit.plugin.java.annotation.dependency.DependsOn;
+import org.bukkit.plugin.java.annotation.permission.ChildPermission;
+import org.bukkit.plugin.java.annotation.permission.Permission;
+import org.bukkit.plugin.java.annotation.permission.Permissions;
+import org.bukkit.plugin.java.annotation.plugin.ApiVersion;
+import org.bukkit.plugin.java.annotation.plugin.Description;
+import org.bukkit.plugin.java.annotation.plugin.Plugin;
+import org.bukkit.plugin.java.annotation.plugin.Website;
+import org.bukkit.plugin.java.annotation.plugin.author.Author;
 import org.bukkit.util.Vector;
 import org.inventivetalent.packetlistener.PacketListenerAPI;
 import org.inventivetalent.packetlistener.handler.PacketHandler;
@@ -42,8 +55,24 @@ import org.inventivetalent.packetlistener.handler.ReceivedPacket;
 import org.inventivetalent.packetlistener.handler.SentPacket;
 import org.json.simple.JSONValue;
 
-public final class NPCPlugin extends JavaPlugin {
+@Plugin(name = "NPC", version = "0.1")
+@Description("Fake entities and more via custom packets")
+@ApiVersion(ApiVersion.Target.v1_13)
+@DependsOn({
+        @Dependency("PacketListenerApi"),
+        @Dependency("GenericEvents")})
+@Author("StarTux")
+@Website("https://cavetale.com")
+@Commands(@Command(name = "NPC",
+                   desc = "NPC debug commands",
+                   permission = "npc.npc",
+                   usage = "/<command>"))
+@Permissions(@Permission(name = "npc.npc",
+                         desc = "Use /npc",
+                         defaultValue = PermissionDefault.OP))
+public final class NPCPlugin extends JavaPlugin implements NPCManager {
     private final List<NPC> npcs = new ArrayList<>();
+    private final List<Conversation> conversations = new ArrayList<>();
     private Random random = new Random(System.nanoTime());
     private PacketHandler packetHandler;
     @Getter private static NPCPlugin instance;
@@ -69,23 +98,27 @@ public final class NPCPlugin extends JavaPlugin {
                 public void onReceive(ReceivedPacket packet) {
                     if (packet.getPacketName().equals("PacketPlayInUseEntity")) {
                         int id = (Integer)packet.getPacketValue(0);
-                        for (NPC npc: npcs) {
-                            if (npc.getId() == id) {
-                                Player player = packet.getPlayer();
-                                PacketPlayInUseEntity ppiue = (PacketPlayInUseEntity)packet.getPacket();
-                                boolean rightClick;
-                                switch (ppiue.b()) {
-                                case INTERACT: case INTERACT_AT:
-                                    rightClick = true;
-                                    break;
-                                case ATTACK: default:
-                                    rightClick = false;
-                                }
-                                if (player != null) {
-                                    getServer().getScheduler().runTask(NPCPlugin.this, () -> npc.interact(player, rightClick));
-                                }
+                        NPC npc = null;
+                        for (NPC n: npcs) {
+                            if (n.getId() == id) {
+                                npc = n;
                                 break;
                             }
+                        }
+                        if (npc == null) return;
+                        Player player = packet.getPlayer();
+                        PacketPlayInUseEntity ppiue = (PacketPlayInUseEntity)packet.getPacket();
+                        boolean rightClick;
+                        switch (ppiue.b()) {
+                        case INTERACT: case INTERACT_AT:
+                            rightClick = true;
+                            break;
+                        case ATTACK: default:
+                            rightClick = false;
+                        }
+                        final NPC npc2 = npc;
+                        if (player != null) {
+                            getServer().getScheduler().runTask(NPCPlugin.this, () -> npc2.interact(player, rightClick));
                         }
                     }
                 }
@@ -169,7 +202,7 @@ public final class NPCPlugin extends JavaPlugin {
     }
 
     @Override
-    public boolean onCommand(CommandSender sender, Command command, String alias, String[] args) {
+    public boolean onCommand(CommandSender sender, org.bukkit.command.Command command, String alias, String[] args) {
         if (args.length == 0) return false;
         Player player = sender instanceof Player ? (Player)sender : null;
         Iterator<String> argIter = Arrays.asList(args).iterator();
@@ -181,22 +214,23 @@ public final class NPCPlugin extends JavaPlugin {
                 location.setPitch(0.0f);
                 switch (argIter.next()) {
                 case "player":
-                    npc = new NPC(NPC.Type.PLAYER, location, argIter.next(), null);
+                    npc = new NPC(this, NPC.Type.PLAYER, location, argIter.next(), null);
                     break;
                 case "mob":
-                    npc = new NPC(NPC.Type.MOB, location, EntityType.valueOf(argIter.next().toUpperCase()));
+                    npc = new NPC(this, NPC.Type.MOB, location, EntityType.valueOf(argIter.next().toUpperCase()));
                     break;
                 case "block":
-                    npc = new NPC(NPC.Type.BLOCK, location, getServer().createBlockData(argIter.next()));
+                    npc = new NPC(this, NPC.Type.BLOCK, location, getServer().createBlockData(argIter.next()));
                     break;
                 case "item":
-                    npc = new NPC(NPC.Type.ITEM, location, new ItemStack(Material.valueOf(argIter.next().toUpperCase()), argIter.hasNext() ? Integer.parseInt(argIter.next()) : 1));
+                    npc = new NPC(this, NPC.Type.ITEM, location, new ItemStack(Material.valueOf(argIter.next().toUpperCase()), argIter.hasNext() ? Integer.parseInt(argIter.next()) : 1));
                     break;
                 case "marker":
                     long lifespan = Long.parseLong(argIter.next());
                     StringBuilder sb = new StringBuilder(argIter.next());
                     while (argIter.hasNext()) sb.append(" ").append(argIter.next());
-                    npc = new NPC(NPC.Type.MARKER, location, sb.toString(), lifespan);
+                    npc = new NPC(this, NPC.Type.MARKER, location, sb.toString());
+                    npc.setLifespan(lifespan);
                     break;
                 case "realplayer":
                     player.sendMessage("Attempting to spawn...");
@@ -207,7 +241,7 @@ public final class NPCPlugin extends JavaPlugin {
                                 player.sendMessage("Skin not found: " + name);
                                 return;
                             }
-                            NPC npc2 = new NPC(NPC.Type.PLAYER, player.getLocation(), name, playerSkin);
+                            NPC npc2 = new NPC(this, NPC.Type.PLAYER, player.getLocation(), name, playerSkin);
                             if (argIter.hasNext()) npc2.setJob(NPC.Job.valueOf(argIter.next().toUpperCase()));
                             enableNPC(npc2);
                             player.sendMessage("Spawned " + npc2.getName());
@@ -265,11 +299,10 @@ public final class NPCPlugin extends JavaPlugin {
                 int index = 0;
                 for (NPC npc: result) {
                     sender.sendMessage("" + index + ") " + npc.getDescription());
-                    NPC marker = new NPC(NPC.Type.MARKER, npc.getHeadLocation(), "#" + npc.getId(), 60L);
-                    marker.getExclusive().add(player.getUniqueId());
-                    marker.setFollowNPC(npc);
-                    marker.setFollowOffset(new Vector(0.0, npc.getEntity().length, 0.0));
-                    enableNPC(marker);
+                    if (npc.getType() != NPC.Type.MARKER) {
+                        NPC bubble = npc.addSpeechBubble(this, ChatColor.DARK_GRAY + "#" + npc.getId(), null);
+                        bubble.getExclusive().add(player.getUniqueId());
+                    }
                     index += 1;
                 }
                 return true;
@@ -337,6 +370,7 @@ public final class NPCPlugin extends JavaPlugin {
         return false;
     }
 
+    @Override
     public boolean enableNPC(NPC npc) {
         npcs.add(npc);
         try {
@@ -349,6 +383,21 @@ public final class NPCPlugin extends JavaPlugin {
         return true;
     }
 
+    @Override
+    public boolean enableConversation(Conversation convo) {
+        conversations.add(convo);
+        if (convo.getPlayers().isEmpty() || convo.getNpcs().isEmpty()) throw new IllegalStateException("Neither players nor npcs may be empty.");
+        try {
+            // This will set the new Conversation for all NPCs and Playres
+            convo.enable();
+        } catch (Throwable t) {
+            t.printStackTrace();
+            conversations.remove(convo);
+            return false;
+        }
+        return true;
+    }
+
     void onTick() {
         for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
             NPC npc = iter.next();
@@ -356,16 +405,31 @@ public final class NPCPlugin extends JavaPlugin {
                 try {
                     npc.tick();
                 } catch (Throwable t) {
+                    try {
+                        npc.disable();
+                    } catch (Throwable u) { }
                     npc.setValid(false);
                     t.printStackTrace();
                 }
             }
             if (!npc.isValid()) {
+                iter.remove();
+            }
+        }
+        for (Iterator<Conversation> iter = conversations.iterator(); iter.hasNext();) {
+            Conversation convo = iter.next();
+            if (convo.isValid()) {
                 try {
-                    npc.disable();
-                } catch (Exception e) {
-                    e.printStackTrace();
+                    convo.tick();
+                } catch (Throwable t) {
+                    try {
+                        convo.disable();
+                    } catch (Throwable u) { }
+                    convo.setValid(false);
+                    t.printStackTrace();
                 }
+            }
+            if (!convo.isValid()) {
                 iter.remove();
             }
         }

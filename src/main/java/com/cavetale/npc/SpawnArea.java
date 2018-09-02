@@ -10,8 +10,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Value;
+import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -121,12 +121,17 @@ final class SpawnArea {
             } else {
                 npc = new NPC(plugin, NPC.Type.MOB, location, EntityType.VILLAGER);
                 npc.setData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));
-                if (random.nextBoolean()) npc.setData(NPC.DataVar.AGEABLE_BABY, true);
+                if (random.nextBoolean()) {
+                    npc.setBaby(true);
+                    npc.setData(NPC.DataVar.AGEABLE_BABY, true);
+                }
                 npc.setJob(NPC.Job.WANDER);
             }
             if (npc.isBlockedAt(location)) continue;
             if (npc.collidesWithOther()) continue;
-            npc.setSpeech(Arrays.asList("Hello World!", "How are you?", "What's going on?"));
+            npc.setChatDisplayName(ChatColor.BLUE + "Villager");
+            npc.setChatColor(ChatColor.RED);
+            npc.setSpeech(Arrays.asList(Arrays.asList("I'm well, thank you.", "What's going on?", "I'm so confused...", "Oh well.", "Cya")));
             npc.setDelegate(new NPC.Delegate() {
                     @Override public void onTick() {
                     }
@@ -181,6 +186,29 @@ final class SpawnArea {
                     }
                     @Override public boolean onInteract(Player player, boolean rightClick) {
                         return true;
+                    }
+                    @Override public boolean onNewConversation(Player player) {
+                        Conversation convo = new Conversation(plugin);
+                        convo.add(player);
+                        convo.add(npc);
+                        convo.setDelegate(() -> {
+                                switch (convo.getTimeouts()) {
+                                case 0:
+                                    return convo.say(Arrays.asList("Hello, friend.", "How are you?"));
+                                case 1:
+                                    return convo.say(Arrays.asList("I found this odd gem by the springs.", "I wonder what my uncle has to say about it."));
+                                case 2:
+                                    List<Conversation.Option> options;
+                                    options = Arrays.asList(new Conversation.Option("Red", "red"),
+                                                            new Conversation.Option("Blue", "blue"),
+                                                            new Conversation.Option("Green", "green"));
+                                    return convo.sayOptions("What is your favorite color?", options);
+                                default:
+                                    return 0;
+                                }
+                            });
+                        plugin.enableConversation(convo);
+                        return false;
                     }
                 });
             if (plugin.enableNPC(npc)) {

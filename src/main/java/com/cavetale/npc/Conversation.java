@@ -2,14 +2,20 @@ package com.cavetale.npc;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
-import lombok.Value;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ClickEvent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
+import net.md_5.bungee.api.chat.HoverEvent;
 import org.bukkit.entity.Player;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.metadata.MetadataValue;
@@ -32,6 +38,10 @@ public final class Conversation {
     private double maxDistance = 16.0, maxDistanceSquared = 256.0;
     @Setter private boolean exclusive;
     @Setter private boolean valid;
+    private boolean enabled, disabled;
+    private static final String CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    private static final List<ChatColor> COLORS = Arrays.asList(ChatColor.BLUE, ChatColor.AQUA, ChatColor.GOLD, ChatColor.GRAY, ChatColor.GREEN, ChatColor.RED, ChatColor.YELLOW);
+    private static final String HLINE = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500";
 
     public Conversation(NPCManager manager) {
         this.manager = manager;
@@ -47,6 +57,15 @@ public final class Conversation {
         default void onNPCRemove(NPC npc) { }
         default void onPlayerAdd(Player player) { }
         default void onPlayerRemove(Player player) { }
+        default void onQuestionHeader(int npcIndex) { }
+        default void onQuestionFooter(int npcIndex) { }
+    }
+
+    @RequiredArgsConstructor
+    public static final class Option {
+        public final String text, state;
+        public ChatColor color;
+        public transient String key;
     }
 
     public void add(Player player) {
@@ -67,22 +86,100 @@ public final class Conversation {
         npcs.remove(npc);
     }
 
-    public void simple(List<String> texts) {
+    public void simple(List<Object> texts) {
         this.delegate = () -> {
             if (timeouts < texts.size()) {
-                return (int)npcs.get(0).addSpeechBubble(manager, texts.get(timeouts), null).getLifespan();
-            } else {
-                return 0;
+                Object o = texts.get(timeouts);
+                if (o instanceof List) {
+                    return say(0, (List<String>)o);
+                } else if (o instanceof String) {
+                    return say(0, Arrays.asList((String)o));
+                }
             }
+            return 0;
         };
     }
 
-    @Value
-    public final class Option {
-        String key, text, newState;
+    public int say(int npcIndex, List<String> texts) {
+        if (npcIndex < 0 || npcIndex >= npcs.size()) return 0;
+        NPC npc = npcs.get(npcIndex);
+        int result = 0;
+        BaseComponent[] msg = npc.formatChat(texts);
+        for (Player player: players) {
+            player.spigot().sendMessage(msg);
+        }
+        int lifespan = 0;
+        for (String text: texts) {
+            lifespan += (npc.getChatSpeed() * text.length()) / 16;
+        }
+        for (String text: texts) {
+            NPC bubble = npc.addSpeechBubble(manager, text, null);
+            bubble.setLifespan((long)lifespan);
+        }
+        npc.updateSpeechBubbles();
+        return lifespan;
+    }
+
+    public int say(List<String> text) {
+        return say(0, text);
+    }
+
+    public int sayOptions(int npcIndex, String question, List<Option> opts) {
+        if (npcIndex < 0 || npcIndex >= npcs.size()) return 0;
+        NPC npc = npcs.get(npcIndex);
+        npc.addSpeechBubble(manager, question, null).setLifespan(0L);
+        BaseComponent[] questionMsg = npc.formatChat(Arrays.asList(question));
+        for (Player player: players) {
+            player.spigot().sendMessage(questionMsg);
+        }
+        options.clear();
+        Collections.shuffle(COLORS);
+        int optIndex = 0;
+        for (Option opt: opts) {
+            opt.key = generateOptionKey(optIndex);
+            options.put(opt.key, opt);
+            if (opt.color == null) opt.color = COLORS.get(optIndex % COLORS.size());
+            optIndex += 1;
+        }
+        delegate.onQuestionHeader(npcIndex);
+        optIndex = 0;
+        for (Option opt: opts) {
+            String cmd = "/npc option " + opt.key;
+            ComponentBuilder cb = new ComponentBuilder("    ");
+            cb.append((optIndex + 1) + ") ");
+            cb.append(opt.text).color(opt.color);
+            cb.event(new ClickEvent(ClickEvent.Action.RUN_COMMAND, cmd));
+            cb.event(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(opt.text).color(opt.color).create()));
+            BaseComponent[] chatMessage = cb.create();
+            for (Player player: players) {
+                player.spigot().sendMessage(chatMessage);
+            }
+            NPC bubble = npc.addSpeechBubble(manager, "" + ChatColor.WHITE + + (optIndex + 1) + ") " + opt.color + opt.text, null);
+            bubble.setLifespan(0L);
+            optIndex += 1;
+        }
+        delegate.onQuestionFooter(npcIndex);
+        for (Player player: players) player.sendMessage("");
+        npc.updateSpeechBubbles();
+        return 400;
+    }
+
+    public int sayOptions(String question, List<Option> opts) {
+        return sayOptions(0, question, opts);
+    }
+
+    private static String generateOptionKey(int index) {
+        StringBuilder sb = new StringBuilder(CHARS.charAt(index));
+        ThreadLocalRandom tlr = ThreadLocalRandom.current();
+        for (int i = 0; i < 5; i += 1) {
+            sb.append(CHARS.charAt(tlr.nextInt(CHARS.length())));
+        }
+        return sb.toString();
     }
 
     public void enable() {
+        if (enabled) return;
+        enabled = true;
         delegate.onEnable();
         for (Player player: players) enablePlayer(player);
         for (NPC npc: npcs) enableNPC(npc);
@@ -90,6 +187,8 @@ public final class Conversation {
     }
 
     public void disable() {
+        if (disabled) return;
+        disabled = true;
         valid = false;
         delegate.onDisable();
         for (Player player: players) disablePlayer(player);
@@ -105,7 +204,7 @@ public final class Conversation {
 
     public void tick() {
         if (players.isEmpty() || npcs.isEmpty()) {
-            disable();
+            valid = false;
             return;
         }
         // Weed out players
@@ -128,15 +227,16 @@ public final class Conversation {
             }
         }
         if (players.isEmpty() || npcs.isEmpty()) {
-            disable();
+            valid = false;
             return;
         }
         if (timer == 0) {
+            options.clear();
             timer = delegate.onTimeout();
             timeouts += 1;
         }
         if (timer <= 0) {
-            disable();
+            valid = false;
             return;
         }
         ticksLived += 1;
@@ -150,6 +250,7 @@ public final class Conversation {
 
     public void disableNPC(NPC npc) {
         delegate.onNPCRemove(npc);
+        npc.clearSpeechBubbles();
         if (npc.getConversation() == this) npc.setConversation(null);
     }
 

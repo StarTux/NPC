@@ -18,6 +18,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.Value;
+import net.md_5.bungee.api.ChatColor;
+import net.md_5.bungee.api.chat.BaseComponent;
+import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.minecraft.server.v1_13_R2.Block;
 import net.minecraft.server.v1_13_R2.BlockPosition;
 import net.minecraft.server.v1_13_R2.ChatComponentText;
@@ -26,6 +29,7 @@ import net.minecraft.server.v1_13_R2.DataWatcherObject;
 import net.minecraft.server.v1_13_R2.DataWatcherRegistry;
 import net.minecraft.server.v1_13_R2.DataWatcherSerializer;
 import net.minecraft.server.v1_13_R2.Entity;
+import net.minecraft.server.v1_13_R2.EntityAgeable;
 import net.minecraft.server.v1_13_R2.EntityArmorStand;
 import net.minecraft.server.v1_13_R2.EntityFallingBlock;
 import net.minecraft.server.v1_13_R2.EntityItem;
@@ -57,7 +61,6 @@ import net.minecraft.server.v1_13_R2.PlayerInteractManager;
 import net.minecraft.server.v1_13_R2.Vector3f;
 import net.minecraft.server.v1_13_R2.WorldServer;
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Tag;
@@ -82,6 +85,7 @@ public final class NPC {
     private final int id;
     private final String name;
     @Setter private boolean valid;
+    private boolean enabled, disabled;
     // Location
     @Setter private Location location;
     private Chunk chunkLocation;
@@ -108,7 +112,6 @@ public final class NPC {
     private final ScheduledPacketList packets = new ScheduledPacketList();
     private long ticksLived;
     @Setter private long lifespan = -1;
-    @Setter private long speechLifespan = 40L;
     private long lastInteract;
     @Setter private boolean removeWhenUnwatched;
     // Job
@@ -119,7 +122,7 @@ public final class NPC {
     private int turn, turnTotal; // Countdown for current task duration
     private double movementSpeed = 3.0; // Blocks per second
     private double direction;
-    // Task.FOLLOW or Job.RELATIVE
+    // Task.FOLLOW or Job.SPEECH_BUBBLE
     @Setter private LivingEntity followEntity;
     @Setter private NPC followNPC;
     @Setter private Vector followOffset;
@@ -127,9 +130,11 @@ public final class NPC {
     private double followDistance;
     private double followDistanceSquared;
     @Setter private Conversation conversation;
-    @Setter private List<String> speech;
+    @Setter private List<Object> speech;
     private NPC speechBubble;
-    @Setter private String chatName;
+    @Setter private String chatDisplayName;
+    @Setter private ChatColor chatColor;
+    @Setter private int chatSpeed = 20;
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
 
@@ -251,8 +256,11 @@ public final class NPC {
             entityData.set(DataVar.ENTITY_CUSTOM_NAME_VISIBLE, true);
             entityData.setFlags(DataVar.ENTITY_FLAGS, EntityFlag.ENTITY_INVISIBLE);
             entityData.setFlags(DataVar.ARMOR_STAND_FLAGS, EntityFlag.ARMOR_STAND_NO_BASEPLATE, EntityFlag.ARMOR_STAND_MARKER);
-            updateCustomName(text);
-            job = Job.RELATIVE;
+            if (chatColor != null) {
+                updateCustomName(chatColor + text);
+            } else {
+                updateCustomName(text);
+            }
             break;
         default:
             throw new IllegalArgumentException("NPC(Type, Location, String): wrong consturctor for type " + type);
@@ -294,9 +302,14 @@ public final class NPC {
 
         default void onPlayerRemove(Player player) { }
 
+        default boolean onNewConversation(Player player) {
+            return true;
+        }
+
         default void onBeginConversation(Conversation conversation) { }
 
         default void onEndConversation(Conversation conversation) { }
+
     }
 
     @RequiredArgsConstructor
@@ -386,7 +399,7 @@ public final class NPC {
     }
 
     public enum Job {
-        NONE, WANDER, WIGGLE, DANCE, RELATIVE;
+        NONE, WANDER, WIGGLE, DANCE, SPEECH_BUBBLE;
     }
 
     public enum Task {
@@ -743,7 +756,7 @@ public final class NPC {
         updateMovement();
         updateWatchers();
         ticksLived += 1;
-        if (lifespan > 0 && lifespan < ticksLived) disable();
+        if (lifespan > 0 && lifespan < ticksLived) valid = false;
     }
 
     /**
@@ -929,6 +942,8 @@ public final class NPC {
     // -- Internal methods intended to be called by NPCManager.  Only call if you know what you are doing.
 
     public void enable() {
+        if (enabled) return;
+        enabled = true;
         lastLocation = location.clone();
         trackLocation = location.clone();
         headYaw = location.getYaw();
@@ -939,6 +954,8 @@ public final class NPC {
     }
 
     public void disable() {
+        if (disabled) return;
+        disabled = true;
         delegate.onDisable();
         for (Watcher watcher: watchers.values()) {
             if (!watcher.player.isValid()) continue;
@@ -954,20 +971,22 @@ public final class NPC {
         Watcher watcher = watchers.get(player.getUniqueId());
         if (watcher == null) return;
         if (type == Type.PLAYER && watcher.unsetPlayerSkin <= 0) watcher.setPlayerSkin = ticksLived;
-        boolean res = delegate.onInteract(player, rightClick);
+        if (!delegate.onInteract(player, rightClick)) return;
         // Begin conversation
         if (conversation != null && conversation.isValid()) return;
         Conversation old = Conversation.of(player, manager);
-        if ((old == null || !old.isExclusive()) && res && conversation == null && speech != null) {
+        if ((old == null || !old.isExclusive()) && conversation == null) {
             // Cancel player's old conversation if it allows it (exclusive flag)
             if (old != null) {
-                old.disable();
+                old.setValid(false);
             }
-            Conversation convo = new Conversation(manager);
-            convo.add(player);
-            convo.add(this);
-            convo.simple(speech);
-            manager.enableConversation(convo);
+            if (delegate.onNewConversation(player) && speech != null) {
+                Conversation convo = new Conversation(manager);
+                convo.add(player);
+                convo.add(this);
+                convo.simple(speech);
+                manager.enableConversation(convo);
+            }
         }
     }
 
@@ -1052,14 +1071,14 @@ public final class NPC {
             headYaw += 15.0;
             location.setYaw((float)headYaw);
             break;
-        case RELATIVE:
-            // Inherit follow data from expired followed NPC. Consider
-            // making this conditional
-            if (followNPC != null && !followNPC.valid) {
+        case SPEECH_BUBBLE:
+            // Inherit follow data from expired followed NPC.
+            while (followNPC != null && !followNPC.valid) {
                 this.followEntity = followNPC.followEntity;
                 this.followOffset = followNPC.followOffset;
                 this.followLocation = followNPC.followLocation;
                 this.followNPC = followNPC.followNPC;
+                if (followNPC != null) followNPC.speechBubble = this;
             }
             if (followEntity != null) {
                 location = followEntity.getLocation();
@@ -1402,6 +1421,14 @@ public final class NPC {
         }
     }
 
+    public void setBaby(boolean baby) {
+        if (baby) {
+            ((EntityAgeable)entity).setAge(-1, true);
+        } else {
+            ((EntityAgeable)entity).setAge(0, true);
+        }
+    }
+
     public void setData(DataVar variable, Object value) {
         if (value == null) {
             entityData.unset(variable);
@@ -1508,20 +1535,57 @@ public final class NPC {
     }
 
     public NPC addSpeechBubble(NPCManager manager, String text, Delegate del) {
-        NPC bubble = new NPC(manager, Type.MARKER, getHeadLocation().add(0.0, 0.2, 0.0), text);
-        bubble.job = Job.RELATIVE;
+        if (chatColor != null) text = chatColor + text;
+        NPC bubble = new NPC(manager, Type.MARKER, getHeadLocation().add(0.0, 0.25, 0.0), text);
         if (del != null) bubble.delegate = del;
+        bubble.lifespan = (long)chatSpeed;
+        addSpeechBubble(bubble);
+        return bubble;
+    }
+
+    public void addSpeechBubble(NPC bubble) {
+        bubble.job = Job.SPEECH_BUBBLE;
         bubble.followNPC = this;
-        bubble.followOffset = new Vector(0.0, entity.length + 0.2, 0.0);
-        bubble.lifespan = speechLifespan;
-        if (speechBubble != null && speechBubble.valid && speechBubble.job == Job.RELATIVE) {
+        bubble.followOffset = new Vector(0.0, entity.length + 0.25, 0.0);
+        if (speechBubble != null && speechBubble.valid && speechBubble.job == Job.SPEECH_BUBBLE) {
             speechBubble.followEntity = null;
             speechBubble.followNPC = bubble;
-            speechBubble.followOffset = new Vector(0.0, 0.4, 0.0);
+            speechBubble.followOffset = new Vector(0.0, 0.25, 0.0);
+            bubble.speechBubble = speechBubble;
         }
-        this.speechBubble = bubble;
-        manager.enableNPC(bubble);
-        return bubble;
+        speechBubble = bubble;
+        if (!bubble.valid) manager.enableNPC(bubble);
+    }
+
+    void updateSpeechBubbles() {
+        NPC npc = this;
+        while (npc.speechBubble != null) {
+            Location loc = npc.location.clone();
+            npc = npc.speechBubble;
+            if (npc.followOffset != null) loc = loc.add(npc.followOffset);
+            npc.location = loc;
+        }
+    }
+
+    public BaseComponent[] formatChat(List<String> texts) {
+        if (texts.isEmpty()) return null;
+        ComponentBuilder cb = new ComponentBuilder("");
+        cb.append("<").append(this.chatDisplayName == null ? "NPC" : this.chatDisplayName).append(">").color(ChatColor.WHITE);
+        cb.append(" ");
+        ChatColor col = this.chatColor == null ? ChatColor.WHITE : this.chatColor;
+        cb.append(texts.get(0)).color(col);
+        for (int i = 1; i < texts.size(); i += 1) {
+            cb.append("\n  ").append(texts.get(i)).color(col);
+        }
+        return cb.create();
+    }
+
+    public void clearSpeechBubbles() {
+        NPC npc = this;
+        while (npc.speechBubble != null) {
+            npc = npc.speechBubble;
+            npc.setValid(false);
+        }
     }
 
     // -- Animation

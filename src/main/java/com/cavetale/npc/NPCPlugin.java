@@ -413,6 +413,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 }
             }
             if (!npc.isValid()) {
+                npc.disable();
                 iter.remove();
             }
         }
@@ -430,6 +431,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 }
             }
             if (!convo.isValid()) {
+                convo.disable();
                 iter.remove();
             }
         }

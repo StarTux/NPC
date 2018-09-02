@@ -84,8 +84,8 @@ public final class NPC {
     private final Type type;
     private final int id;
     private final String name;
+    @Setter private String uniqueName;
     @Setter private boolean valid;
-    private boolean enabled, disabled;
     // Location
     @Setter private Location location;
     private Chunk chunkLocation;
@@ -116,7 +116,7 @@ public final class NPC {
     @Setter private boolean removeWhenUnwatched;
     // Job
     @Setter private Job job;
-    @Setter private Delegate delegate = () -> { };
+    @Setter private Delegate delegate = (n) -> { };
     // Task
     private Task task;
     private int turn, turnTotal; // Countdown for current task duration
@@ -131,10 +131,13 @@ public final class NPC {
     private double followDistanceSquared;
     @Setter private Conversation conversation;
     @Setter private List<Object> speech;
+    @Setter private Conversation.Delegate conversationDelegate;
     private NPC speechBubble;
     @Setter private String chatDisplayName;
     @Setter private ChatColor chatColor;
     @Setter private int chatSpeed = 20;
+    private final List<History> history = new ArrayList<>();
+    @Setter private boolean debug;
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
 
@@ -270,45 +273,45 @@ public final class NPC {
     // -- Overridable Delegate methods
 
     public interface Delegate {
-        void onTick();
+        void onTick(NPC npc);
 
         /**
          * Called when the NPC is added to the list of NPCs, before it is
          * ticked for the first time
          */
-        default void onEnable() { }
+        default void onEnable(NPC npc) { }
 
         /**
          * Called when the NPC is removed from the list of NPCs, after it
          * was ticked for the final time.
          */
-        default void onDisable() { }
+        default void onDisable(NPC npc) { }
 
-        default boolean canMoveIn(org.bukkit.block.Block block) {
+        default boolean canMoveIn(NPC npc, org.bukkit.block.Block block) {
             return true;
         }
 
-        default boolean canMoveOn(org.bukkit.block.Block block) {
+        default boolean canMoveOn(NPC npc, org.bukkit.block.Block block) {
             return true;
         }
 
-        default boolean onInteract(Player player, boolean rightClick) {
+        default boolean onInteract(NPC npc, Player player, boolean rightClick) {
             return true;
         }
 
-        default boolean onPlayerAdd(Player player) {
+        default boolean onPlayerAdd(NPC npc, Player player) {
             return true;
         }
 
-        default void onPlayerRemove(Player player) { }
+        default void onPlayerRemove(NPC npc, Player player) { }
 
-        default boolean onNewConversation(Player player) {
+        default boolean onNewConversation(NPC npc, Player player) {
             return true;
         }
 
-        default void onBeginConversation(Conversation conversation) { }
+        default void onBeginConversation(NPC npc, Conversation conversation) { }
 
-        default void onEndConversation(Conversation conversation) { }
+        default void onEndConversation(NPC npc, Conversation conversation) { }
 
     }
 
@@ -359,6 +362,11 @@ public final class NPC {
     @Value
     public static final class NPCChunk {
         public final int x, z;
+    }
+
+    @Value
+    static final class History {
+        public final int x, y, z;
     }
 
     private static final class GlobalCache {
@@ -751,7 +759,7 @@ public final class NPC {
      * reduce simulation speed.
      */
     public void tick() {
-        delegate.onTick();
+        delegate.onTick(this);
         if (job != null) performJob();
         updateMovement();
         updateWatchers();
@@ -765,6 +773,14 @@ public final class NPC {
      * players are updated.
      */
     public void updateMovement() {
+        if (history.isEmpty()) {
+            history.add(new History(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+        } else {
+            History hist = history.get(history.size() - 1);
+            if (hist.x != location.getBlockX() || hist.y != location.getBlockY() || hist.z != location.getBlockZ()) {
+                history.add(new History(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+            }
+        }
         boolean didMove =
             location.getX() != lastLocation.getX()
             || location.getY() != lastLocation.getY()
@@ -901,7 +917,7 @@ public final class NPC {
             if (!watcherIds.contains(player.getUniqueId())
                 && player.getLocation().distanceSquared(location) < viewDistanceSquared) {
                 if (!exclusive.isEmpty() && !exclusive.contains(player.getUniqueId())) continue;
-                if (!delegate.onPlayerAdd(player)) continue;
+                if (!delegate.onPlayerAdd(this, player)) continue;
                 Watcher watcher = new Watcher(player);
                 watchers.put(player.getUniqueId(), watcher);
                 startWatch(watcher);
@@ -942,21 +958,17 @@ public final class NPC {
     // -- Internal methods intended to be called by NPCManager.  Only call if you know what you are doing.
 
     public void enable() {
-        if (enabled) return;
-        enabled = true;
         lastLocation = location.clone();
         trackLocation = location.clone();
         headYaw = location.getYaw();
         lastHeadYaw = headYaw;
         updateChunkLocation();
         valid = true;
-        delegate.onEnable();
+        delegate.onEnable(this);
     }
 
     public void disable() {
-        if (disabled) return;
-        disabled = true;
-        delegate.onDisable();
+        delegate.onDisable(this);
         for (Watcher watcher: watchers.values()) {
             if (!watcher.player.isValid()) continue;
             stopWatch(watcher);
@@ -971,7 +983,7 @@ public final class NPC {
         Watcher watcher = watchers.get(player.getUniqueId());
         if (watcher == null) return;
         if (type == Type.PLAYER && watcher.unsetPlayerSkin <= 0) watcher.setPlayerSkin = ticksLived;
-        if (!delegate.onInteract(player, rightClick)) return;
+        if (!delegate.onInteract(this, player, rightClick)) return;
         // Begin conversation
         if (conversation != null && conversation.isValid()) return;
         Conversation old = Conversation.of(player, manager);
@@ -980,12 +992,20 @@ public final class NPC {
             if (old != null) {
                 old.setValid(false);
             }
-            if (delegate.onNewConversation(player) && speech != null) {
-                Conversation convo = new Conversation(manager);
-                convo.add(player);
-                convo.add(this);
-                convo.simple(speech);
-                manager.enableConversation(convo);
+            if (delegate.onNewConversation(this, player)) {
+                if (speech != null) {
+                    Conversation convo = new Conversation(manager);
+                    convo.add(player);
+                    convo.add(this);
+                    convo.simple(speech);
+                    manager.enableConversation(convo);
+                } else if (conversationDelegate != null) {
+                    Conversation convo = new Conversation(manager);
+                    convo.add(player);
+                    convo.add(this);
+                    convo.setDelegate(conversationDelegate);
+                    manager.enableConversation(convo);
+                }
             }
         }
     }
@@ -993,11 +1013,11 @@ public final class NPC {
     void beginConversation(Conversation conversation) {
         this.conversation = conversation;
         task = Task.CONVERSATION;
-        delegate.onBeginConversation(conversation);
+        delegate.onBeginConversation(this, conversation);
     }
 
     void endConversation(Conversation conversation) {
-        delegate.onEndConversation(conversation);
+        delegate.onEndConversation(this, conversation);
     }
 
     // -- Public simulation methods for moving around the world.  Jobs and tasks included.
@@ -1015,7 +1035,7 @@ public final class NPC {
                         turn = 20 + ThreadLocalRandom.current().nextInt(40);
                     } else {
                         task = Task.TURN;
-                        turn = 10 + ThreadLocalRandom.current().nextInt(21);
+                        turn = 5 + ThreadLocalRandom.current().nextInt(16);
                         direction = ThreadLocalRandom.current().nextBoolean() ? -1 : 1;
                         direction *= 10.0 + ThreadLocalRandom.current().nextDouble() * 10.0;
                     }
@@ -1024,9 +1044,9 @@ public final class NPC {
                 case TURN:
                 default:
                     task = Task.WALK;
-                    turn = 20 + ThreadLocalRandom.current().nextInt(100);
+                    turn = 40 + ThreadLocalRandom.current().nextInt(200);
                     direction = ThreadLocalRandom.current().nextBoolean() ? -1 : 1;
-                    direction *= ThreadLocalRandom.current().nextDouble() * 10.0;
+                    direction *= ThreadLocalRandom.current().nextDouble() * ThreadLocalRandom.current().nextDouble() * 2.5;
                 }
             }
             performTask();
@@ -1311,7 +1331,12 @@ public final class NPC {
     }
 
     boolean canWalkFromTo(Location from, Location to) {
+        if (debug) System.out.println("canWalkFromTo ENTER");
         if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) return true;
+        if (debug) System.out.println("canWalkFromTo B");
+        org.bukkit.block.Block fromBlock = from.getBlock();
+        if (!delegate.canMoveIn(this, fromBlock) || !delegate.canMoveOn(this, fromBlock.getRelative(0, -1, 0))) return true;
+        if (debug) System.out.println("canWalkFromTo C");
         double width2 = (double)entity.width * 0.5;
         Location a = to.clone().add(-width2, 0.0, -width2);
         Location b = to.clone().add(width2, 0.0, width2);
@@ -1323,8 +1348,9 @@ public final class NPC {
         for (int z = az; z <= bz; z += 1) {
             for (int x = ax; x <= bx; x += 1) {
                 org.bukkit.block.Block block = to.getWorld().getBlockAt(x, y, z);
-                if (!delegate.canMoveIn(block)) return false;
-                if (!delegate.canMoveOn(block.getRelative(0, -1, 0))) return false;
+                if (!delegate.canMoveIn(this, block)) return false;
+                if (!delegate.canMoveOn(this, block.getRelative(0, -1, 0))) return false;
+                if (debug) System.out.println("canWalkFromTo D " + x + "," + z);
             }
         }
         return true;

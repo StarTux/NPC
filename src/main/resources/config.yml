@@ -2,3 +2,23 @@ spawn:
   World: Spawn
   Chunks: []
   Amount: 100
+  convo:
+    init: Hello World
+    how: How
+    are: Are
+    you: You
+    doing: Doing
+    today: Today?
+    question:
+      question: What is your favorite animal?
+      options:
+        cat: Cat
+        dog: Dog
+        bye: None of the above.
+    cat:
+      say: I love cats, too! :D
+      next: bye
+    dog:
+      say: Dogs are my second favorite. ;-)
+      next: bye
+    bye: Well cya later then.

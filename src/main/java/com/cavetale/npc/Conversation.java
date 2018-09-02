@@ -8,6 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
+import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
@@ -32,8 +33,9 @@ public final class Conversation {
     private long ticksLived;
     private long timer;
     private int timeouts;
-    @Setter Delegate delegate = () -> 0;
-    private String state;
+    private int stateTicks;
+    @Setter Delegate delegate = (c) -> 0;
+    private String state = "init";
     private final Map<String, Option> options = new LinkedHashMap<>();
     private double maxDistance = 16.0, maxDistanceSquared = 256.0;
     @Setter private boolean exclusive;
@@ -49,19 +51,20 @@ public final class Conversation {
     }
 
     static interface Delegate {
-        int onTimeout();
-        default void onTick() { }
-        default void onEnable() { }
-        default void onDisable() { }
-        default void onNPCAdd(NPC npc) { }
-        default void onNPCRemove(NPC npc) { }
-        default void onPlayerAdd(Player player) { }
-        default void onPlayerRemove(Player player) { }
-        default void onQuestionHeader(int npcIndex) { }
-        default void onQuestionFooter(int npcIndex) { }
+        int onTimeout(Conversation convo);
+        default void onOption(Conversation convo, Player player, Option option) { }
+        default void onTick(Conversation convo) { }
+        default void onEnable(Conversation convo) { }
+        default void onDisable(Conversation convo) { }
+        default void onNPCAdd(Conversation convo, NPC npc) { }
+        default void onNPCRemove(Conversation convo, NPC npc) { }
+        default void onPlayerAdd(Conversation convo, Player player) { }
+        default void onPlayerRemove(Conversation convo, Player player) { }
+        default void onQuestionHeader(Conversation convo, int npcIndex) { }
+        default void onQuestionFooter(Conversation convo, int npcIndex) { }
     }
 
-    @RequiredArgsConstructor
+    @Data @RequiredArgsConstructor
     public static final class Option {
         public final String text, state;
         public ChatColor color;
@@ -87,7 +90,7 @@ public final class Conversation {
     }
 
     public void simple(List<Object> texts) {
-        this.delegate = () -> {
+        this.delegate = (c) -> {
             if (timeouts < texts.size()) {
                 Object o = texts.get(timeouts);
                 if (o instanceof List) {
@@ -112,6 +115,7 @@ public final class Conversation {
         for (String text: texts) {
             lifespan += (npc.getChatSpeed() * text.length()) / 16;
         }
+        lifespan = Math.max(npc.getChatSpeed(), lifespan);
         for (String text: texts) {
             NPC bubble = npc.addSpeechBubble(manager, text, null);
             bubble.setLifespan((long)lifespan);
@@ -127,10 +131,12 @@ public final class Conversation {
     public int sayOptions(int npcIndex, String question, List<Option> opts) {
         if (npcIndex < 0 || npcIndex >= npcs.size()) return 0;
         NPC npc = npcs.get(npcIndex);
-        npc.addSpeechBubble(manager, question, null).setLifespan(0L);
-        BaseComponent[] questionMsg = npc.formatChat(Arrays.asList(question));
-        for (Player player: players) {
-            player.spigot().sendMessage(questionMsg);
+        if (question != null) {
+            npc.addSpeechBubble(manager, question, null).setLifespan(0L);
+            BaseComponent[] questionMsg = npc.formatChat(Arrays.asList(question));
+            for (Player player: players) {
+                player.spigot().sendMessage(questionMsg);
+            }
         }
         options.clear();
         Collections.shuffle(COLORS);
@@ -141,10 +147,10 @@ public final class Conversation {
             if (opt.color == null) opt.color = COLORS.get(optIndex % COLORS.size());
             optIndex += 1;
         }
-        delegate.onQuestionHeader(npcIndex);
+        delegate.onQuestionHeader(this, npcIndex);
         optIndex = 0;
         for (Option opt: opts) {
-            String cmd = "/npc option " + opt.key;
+            String cmd = "/npca " + opt.key;
             ComponentBuilder cb = new ComponentBuilder("    ");
             cb.append((optIndex + 1) + ") ");
             cb.append(opt.text).color(opt.color);
@@ -158,7 +164,7 @@ public final class Conversation {
             bubble.setLifespan(0L);
             optIndex += 1;
         }
-        delegate.onQuestionFooter(npcIndex);
+        delegate.onQuestionFooter(this, npcIndex);
         for (Player player: players) player.sendMessage("");
         npc.updateSpeechBubbles();
         return 400;
@@ -180,7 +186,7 @@ public final class Conversation {
     public void enable() {
         if (enabled) return;
         enabled = true;
-        delegate.onEnable();
+        delegate.onEnable(this);
         for (Player player: players) enablePlayer(player);
         for (NPC npc: npcs) enableNPC(npc);
         valid = true;
@@ -190,7 +196,7 @@ public final class Conversation {
         if (disabled) return;
         disabled = true;
         valid = false;
-        delegate.onDisable();
+        delegate.onDisable(this);
         for (Player player: players) disablePlayer(player);
         for (NPC npc: npcs) disableNPC(npc);
         players.clear();
@@ -211,7 +217,7 @@ public final class Conversation {
         for (Iterator<Player> iter = players.iterator(); iter.hasNext();) {
             Player player = iter.next();
             if (!player.isValid() || of(player, plugin) != this || !player.getLocation().getWorld().getName().equals(npcs.get(0).getLocation().getWorld().getName()) || player.getLocation().distanceSquared(npcs.get(0).getLocation()) > maxDistanceSquared) {
-                delegate.onPlayerRemove(player);
+                delegate.onPlayerRemove(this, player);
                 iter.remove();
                 if (of(player, plugin) == this) player.removeMetadata(META_CONVO, plugin);
                 continue;
@@ -231,8 +237,11 @@ public final class Conversation {
             return;
         }
         if (timer == 0) {
-            options.clear();
-            timer = delegate.onTimeout();
+            if (!options.isEmpty()) {
+                options.clear();
+                for (NPC npc: npcs) npc.clearSpeechBubbles();
+            }
+            timer = delegate.onTimeout(this);
             timeouts += 1;
         }
         if (timer <= 0) {
@@ -240,28 +249,30 @@ public final class Conversation {
             return;
         }
         ticksLived += 1;
+        stateTicks += 1;
         timer -= 1;
     }
 
     public void enableNPC(NPC npc) {
-        delegate.onNPCAdd(npc);
+        delegate.onNPCAdd(this, npc);
+        npc.clearSpeechBubbles();
         npc.beginConversation(this);
     }
 
     public void disableNPC(NPC npc) {
-        delegate.onNPCRemove(npc);
+        delegate.onNPCRemove(this, npc);
         npc.clearSpeechBubbles();
         if (npc.getConversation() == this) npc.setConversation(null);
     }
 
     private void enablePlayer(Player player) {
         player.setMetadata(META_CONVO, new FixedMetadataValue(plugin, this));
-        delegate.onPlayerAdd(player);
+        delegate.onPlayerAdd(this, player);
     }
 
     private void disablePlayer(Player player) {
         if (of(player, plugin) == this) player.removeMetadata(META_CONVO, plugin);
-        delegate.onPlayerRemove(player);
+        delegate.onPlayerRemove(this, player);
     }
 
     public static Conversation of(Player player, Plugin plugin) {
@@ -277,5 +288,22 @@ public final class Conversation {
 
     public static Conversation of(NPC npc) {
         return npc.getConversation();
+    }
+
+    public void answer(Player player, String key) {
+        if (!players.contains(player)) return;
+        Option option = options.get(key);
+        if (option == null) return;
+        delegate.onOption(this, player, option);
+        for (NPC npc: npcs) npc.clearSpeechBubbles();
+        if (option.state != null) {
+            this.state = option.state;
+            timer = 0;
+        }
+    }
+
+    public void setState(String s) {
+        this.state = s;
+        stateTicks = 0;
     }
 }

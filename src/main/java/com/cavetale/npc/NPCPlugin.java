@@ -23,10 +23,11 @@ import net.minecraft.server.v1_13_R2.BlockPosition;
 import net.minecraft.server.v1_13_R2.PacketPlayInUseEntity;
 import net.minecraft.server.v1_13_R2.PacketPlayOutOpenSignEditor;
 import net.minecraft.server.v1_13_R2.PlayerConnection;
-import org.bukkit.ChatColor;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -63,13 +64,23 @@ import org.json.simple.JSONValue;
         @Dependency("GenericEvents")})
 @Author("StarTux")
 @Website("https://cavetale.com")
-@Commands(@Command(name = "NPC",
-                   desc = "NPC debug commands",
-                   permission = "npc.npc",
-                   usage = "/<command>"))
-@Permissions(@Permission(name = "npc.npc",
-                         desc = "Use /npc",
-                         defaultValue = PermissionDefault.OP))
+@Commands({
+    @Command(name = "npc",
+             desc = "NPC debug commands",
+             permission = "npc.npc",
+             usage = "/<command>"),
+    @Command(name = "npcanswer",
+             aliases = {"npca"},
+             desc = "Reply to NPC questions",
+             permission = "npc.answer",
+             usage = "/<command> <code>")})
+@Permissions({
+    @Permission(name = "npc.npc",
+                desc = "Use /npc",
+                defaultValue = PermissionDefault.OP),
+    @Permission(name = "npc.answer",
+                desc = "Use /npca",
+                defaultValue = PermissionDefault.TRUE)})
 public final class NPCPlugin extends JavaPlugin implements NPCManager {
     private final List<NPC> npcs = new ArrayList<>();
     private final List<Conversation> conversations = new ArrayList<>();
@@ -126,6 +137,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         PacketListenerAPI.addPacketHandler(packetHandler);
         importConfig();
         loadPlayerSkins();
+        getCommand("npcanswer").setExecutor((cs, c, a, args) -> onNPCAnswer(cs, args));
     }
 
     void importConfig() {
@@ -253,15 +265,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 if (argIter.hasNext()) {
                     npc.setJob(NPC.Job.valueOf(argIter.next().toUpperCase()));
                 }
-                try {
-                    npc.enable();
-                } catch (Throwable t) {
-                    t.printStackTrace();
-                    sender.sendMessage("An error occured. See console.");
-                    return true;
+                if (enableNPC(npc)) {
+                    sender.sendMessage("spawned");
                 }
-                npcs.add(npc);
-                sender.sendMessage("spawned");
                 return true;
             }
             break;
@@ -300,7 +306,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 for (NPC npc: result) {
                     sender.sendMessage("" + index + ") " + npc.getDescription());
                     if (npc.getType() != NPC.Type.MARKER) {
-                        NPC bubble = npc.addSpeechBubble(this, ChatColor.DARK_GRAY + "#" + npc.getId(), null);
+                        NPC bubble = npc.addSpeechBubble(this, "#" + npc.getId(), null);
                         bubble.getExclusive().add(player.getUniqueId());
                     }
                     index += 1;
@@ -310,14 +316,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
             break;
         case "clear":
             if (args.length == 1) {
-                for (NPC npc: npcs) {
-                    try {
-                        npc.disable();
-                    } catch (Throwable t) {
-                        t.printStackTrace();
-                    }
-                }
-                npcs.clear();
+                for (NPC npc: npcs) npc.setValid(false);
                 sender.sendMessage("cleared");
                 return true;
             }
@@ -364,10 +363,66 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
+        case "history":
+            if (args.length == 2) {
+                int id = Integer.parseInt(args[1]);
+                NPC npc = null;
+                for (NPC n: npcs) {
+                    if (n.getId() == id) {
+                        npc = n;
+                        break;
+                    }
+                }
+                if (npc == null) {
+                    player.sendMessage("Not found: #" + id);
+                    return true;
+                }
+                for (NPC.History hist: npc.getHistory()) {
+                    Block block = player.getWorld().getBlockAt(hist.x, hist.y, hist.z);
+                    player.getWorld().spawnParticle(Particle.END_ROD, block.getLocation().add(0.5, 0.5, 0.5), 1, 0, 0, 0, 0);
+                }
+                player.sendMessage("Showing movement history of NPC #" + id);
+                return true;
+            }
+            break;
+        case "debug":
+            if (args.length == 2) {
+                int id = Integer.parseInt(args[1]);
+                NPC npc = null;
+                for (NPC n: npcs) {
+                    if (n.getId() == id) {
+                        npc = n;
+                        break;
+                    }
+                }
+                if (npc == null) {
+                    player.sendMessage("Not found: #" + id);
+                    return true;
+                }
+                boolean dbg = !npc.isDebug();
+                npc.setDebug(dbg);
+                if (dbg) {
+                    sender.sendMessage("Debug mode enabled for #" + id);
+                } else {
+                    sender.sendMessage("Debug mode disabled for #" + id);
+                }
+                return true;
+            }
+            break;
         default:
             break;
         }
         return false;
+    }
+
+    boolean onNPCAnswer(CommandSender sender, String[] args) {
+        if (args.length != 1) return true;
+        if (!(sender instanceof Player)) return true;
+        Player player = (Player)sender;
+        Conversation convo = Conversation.of(player, (org.bukkit.plugin.Plugin)this);
+        if (convo == null) return true;
+        convo.answer(player, args[0]);
+        return true;
     }
 
     @Override
@@ -405,15 +460,19 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 try {
                     npc.tick();
                 } catch (Throwable t) {
-                    try {
-                        npc.disable();
-                    } catch (Throwable u) { }
                     npc.setValid(false);
                     t.printStackTrace();
                 }
             }
             if (!npc.isValid()) {
-                npc.disable();
+                try {
+                    npc.disable();
+                } catch (Throwable t) {
+                    try {
+                        System.err.println("Disabling NPC #" + npc.getId() + ": " + npc.getDescription());
+                    } catch (Throwable e) { }
+                    t.printStackTrace();
+                }
                 iter.remove();
             }
         }

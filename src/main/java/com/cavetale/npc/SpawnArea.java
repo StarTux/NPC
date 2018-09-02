@@ -17,7 +17,9 @@ import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.Bisected;
 import org.bukkit.block.data.type.Slab;
+import org.bukkit.block.data.type.Stairs;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -131,11 +133,10 @@ final class SpawnArea {
             if (npc.collidesWithOther()) continue;
             npc.setChatDisplayName(ChatColor.BLUE + "Villager");
             npc.setChatColor(ChatColor.RED);
-            npc.setSpeech(Arrays.asList(Arrays.asList("I'm well, thank you.", "What's going on?", "I'm so confused...", "Oh well.", "Cya")));
+            npc.setConversationDelegate(new SimpleConversationDelegate(plugin.getConfig().getConfigurationSection("spawn.convo")));
             npc.setDelegate(new NPC.Delegate() {
-                    @Override public void onTick() {
-                    }
-                    @Override public boolean canMoveIn(Block block) {
+                    @Override public void onTick(NPC n) { }
+                    @Override public boolean canMoveIn(NPC n, Block block) {
                         switch (block.getType()) {
                         case GRASS:
                         case WHEAT:
@@ -154,7 +155,7 @@ final class SpawnArea {
                             return true;
                         }
                     }
-                    @Override public boolean canMoveOn(Block block) {
+                    @Override public boolean canMoveOn(NPC n, Block block) {
                         Material mat = block.getType();
                         if (Tag.LEAVES.isTagged(mat)) return false;
                         if (Tag.LOGS.isTagged(mat)) return false;
@@ -162,6 +163,9 @@ final class SpawnArea {
                             return false;
                         }
                         if (Tag.TRAPDOORS.isTagged(mat)) return false;
+                        if (Tag.STAIRS.isTagged(mat) && ((Stairs)block.getBlockData()).getHalf() == Bisected.Half.TOP) {
+                            return false;
+                        }
                         switch (mat) {
                         case OAK_FENCE:
                         case SPRUCE_FENCE:
@@ -180,35 +184,16 @@ final class SpawnArea {
                         case WALL_SIGN:
                         case HAY_BLOCK:
                             return false;
-                        default:
-                            return true;
+                        default: break;
                         }
-                    }
-                    @Override public boolean onInteract(Player player, boolean rightClick) {
+                        if (block.getBlockData() instanceof org.bukkit.block.data.type.GlassPane) return false;
                         return true;
                     }
-                    @Override public boolean onNewConversation(Player player) {
-                        Conversation convo = new Conversation(plugin);
-                        convo.add(player);
-                        convo.add(npc);
-                        convo.setDelegate(() -> {
-                                switch (convo.getTimeouts()) {
-                                case 0:
-                                    return convo.say(Arrays.asList("Hello, friend.", "How are you?"));
-                                case 1:
-                                    return convo.say(Arrays.asList("I found this odd gem by the springs.", "I wonder what my uncle has to say about it."));
-                                case 2:
-                                    List<Conversation.Option> options;
-                                    options = Arrays.asList(new Conversation.Option("Red", "red"),
-                                                            new Conversation.Option("Blue", "blue"),
-                                                            new Conversation.Option("Green", "green"));
-                                    return convo.sayOptions("What is your favorite color?", options);
-                                default:
-                                    return 0;
-                                }
-                            });
-                        plugin.enableConversation(convo);
-                        return false;
+                    @Override public boolean onInteract(NPC n, Player player, boolean rightClick) {
+                        return true;
+                    }
+                    @Override public boolean onNewConversation(NPC n, Player player) {
+                        return true;
                     }
                 });
             if (plugin.enableNPC(npc)) {

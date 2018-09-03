@@ -865,6 +865,9 @@ public final class NPC {
      */
     public void updateWatchers() {
         Set<UUID> watcherIds = new HashSet<>();
+        Packet packet;
+        List<Packet> tickPackets = new ArrayList<>();
+        while (null != (packet = packets.deal())) tickPackets.add(packet);
         for (Iterator<Map.Entry<UUID, Watcher>> iter = watchers.entrySet().iterator(); iter.hasNext();) {
             Watcher watcher = iter.next().getValue();
             // Weed out players
@@ -903,13 +906,10 @@ public final class NPC {
                 }
             }
             // Send scheduled packets
-            Packet packet;
             while (null != (packet = watcher.packets.deal())) {
                 connection.sendPacket(packet);
             }
-            while (null != (packet = packets.deal())) {
-                connection.sendPacket(packet);
-            }
+            for (Packet p: tickPackets) connection.sendPacket(p);
             watcher.ticksLived += 1;
         }
         // Find new players

@@ -3,10 +3,13 @@ package com.cavetale.npc;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.Data;
 import lombok.Getter;
@@ -28,7 +31,7 @@ public final class Conversation {
     private final Plugin plugin;
     final List<NPC> npcs = new ArrayList<>();
     final List<Player> players = new ArrayList<>();
-    final Set<UUID> exclusives = new ArrayList<>();
+    final Set<UUID> exclusives = new HashSet<>();
     private static final String META_CONVO = "npc.conversation";
     private long ticksLived;
     private long timer;
@@ -118,6 +121,7 @@ public final class Conversation {
         lifespan = Math.max(npc.getChatSpeed(), lifespan);
         for (String text: texts) {
             NPC bubble = npc.addSpeechBubble(text);
+            bubble.getExclusive().addAll(exclusives);
             bubble.setLifespan((long)lifespan);
         }
         npc.updateSpeechBubbles();
@@ -132,7 +136,9 @@ public final class Conversation {
         if (npcIndex < 0 || npcIndex >= npcs.size()) return 0;
         NPC npc = npcs.get(npcIndex);
         if (question != null) {
-            npc.addSpeechBubble(question).setLifespan(0L);
+            NPC bubble = npc.addSpeechBubble(question);
+            bubble.setLifespan(0L);
+            bubble.getExclusive().addAll(exclusives);
             BaseComponent[] questionMsg = npc.formatChat(Arrays.asList(question));
             for (Player player: players) {
                 player.spigot().sendMessage(questionMsg);
@@ -161,6 +167,7 @@ public final class Conversation {
                 player.spigot().sendMessage(chatMessage);
             }
             NPC bubble = npc.addSpeechBubble("" + ChatColor.WHITE + (optIndex + 1) + ") " + opt.color + opt.text);
+            bubble.getExclusive().addAll(exclusives);
             bubble.setLifespan(0L);
             optIndex += 1;
         }

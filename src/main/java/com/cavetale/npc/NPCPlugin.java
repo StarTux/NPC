@@ -19,6 +19,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.function.Consumer;
 import lombok.Getter;
+import net.md_5.bungee.api.ChatColor;
 import net.minecraft.server.v1_13_R2.BlockPosition;
 import net.minecraft.server.v1_13_R2.PacketPlayInUseEntity;
 import net.minecraft.server.v1_13_R2.PacketPlayOutOpenSignEditor;
@@ -263,7 +264,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                                 player.sendMessage("Skin not found: " + name);
                                 return;
                             }
-                            NPC npc2 = new NPC(this, NPC.Type.PLAYER, player.getLocation(), name, playerSkin);
+                            NPC npc2 = new NPC(this, NPC.Type.PLAYER, player.getLocation(), ChatColor.MAGIC + name, playerSkin);
                             if (argIter.hasNext()) npc2.setJob(NPC.Job.valueOf(argIter.next().toUpperCase()));
                             enableNPC(npc2);
                             player.sendMessage("Spawned " + npc2.getName());

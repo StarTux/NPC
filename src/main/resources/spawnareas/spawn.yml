@@ -1,0 +1,38 @@
+World: Spawn
+Chunks:
+- - 130
+  - 55
+- - 130
+  - 56
+- - 130
+  - 57
+Amount: 100
+RandomVillagers:
+  pets:
+    DisplayName: '§aPet Lover'
+    Conversation:
+      init: Hello, Friend.
+      how:
+      - How are you today?
+      - Good, I hope.
+      que: |-
+        Actually, I have a
+        question for you.
+      question:
+        question: What is your favorite animal?
+        options:
+          cat: Cat
+          dog: Dog
+          bye:
+            text: None of the above.
+            color: red
+        next: timeout
+      cat:
+        say: I love cats, too! :D
+        next: bye
+      dog:
+        say: Dogs are my second favorite. ;-)
+        next: bye
+      timeout: Perhaps another time.
+      bye: Well, cya later then.
+  

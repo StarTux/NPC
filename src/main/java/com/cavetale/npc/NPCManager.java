@@ -11,4 +11,5 @@ public interface NPCManager {
     }
     boolean enableNPC(NPC npc);
     boolean enableConversation(Conversation conversation);
+    NPC findNPCWithUniqueName(String uniqueName);
 }

@@ -93,7 +93,7 @@ public final class SimpleConversationDelegate implements Conversation.Delegate {
                     option = new Conversation.Option(text, optKey);
                     if (optSection.isString("color")) {
                         try {
-                            option.color = ChatColor.valueOf(optSection.getString("color").toUpperCase());
+                            option.setColor(ChatColor.valueOf(optSection.getString("color").toUpperCase()));
                         } catch (IllegalArgumentException iae) {
                             iae.printStackTrace();
                         }

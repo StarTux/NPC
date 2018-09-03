@@ -1,6 +1,5 @@
 package com.cavetale.npc;
 
-import java.util.List;
 import lombok.Data;
 
 @Data

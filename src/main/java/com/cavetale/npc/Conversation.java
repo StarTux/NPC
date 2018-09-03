@@ -21,7 +21,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.metadata.MetadataValue;
 import org.bukkit.plugin.Plugin;
-import org.bukkit.util.Vector;
 
 @Getter
 public final class Conversation {
@@ -29,7 +28,8 @@ public final class Conversation {
     private final Plugin plugin;
     final List<NPC> npcs = new ArrayList<>();
     final List<Player> players = new ArrayList<>();
-    private final static String META_CONVO = "npc.conversation";
+    final Set<UUID> exclusives = new ArrayList<>();
+    private static final String META_CONVO = "npc.conversation";
     private long ticksLived;
     private long timer;
     private int timeouts;
@@ -42,7 +42,7 @@ public final class Conversation {
     @Setter private boolean valid;
     private boolean enabled, disabled;
     private static final String CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    private static final List<ChatColor> COLORS = Arrays.asList(ChatColor.BLUE, ChatColor.AQUA, ChatColor.GOLD, ChatColor.GRAY, ChatColor.GREEN, ChatColor.RED, ChatColor.YELLOW);
+    private static final List<ChatColor> COLORS = Arrays.asList(ChatColor.BLUE, ChatColor.AQUA, ChatColor.GOLD, ChatColor.GRAY, ChatColor.GREEN, ChatColor.YELLOW);
     private static final String HLINE = "\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500";
 
     public Conversation(NPCManager manager) {
@@ -50,7 +50,7 @@ public final class Conversation {
         this.plugin = manager.getPlugin();
     }
 
-    static interface Delegate {
+    interface Delegate {
         int onTimeout(Conversation convo);
         default void onOption(Conversation convo, Player player, Option option) { }
         default void onTick(Conversation convo) { }
@@ -66,9 +66,9 @@ public final class Conversation {
 
     @Data @RequiredArgsConstructor
     public static final class Option {
-        public final String text, state;
-        public ChatColor color;
-        public transient String key;
+        private final String text, state;
+        private ChatColor color;
+        private transient String key;
     }
 
     public void add(Player player) {
@@ -117,7 +117,7 @@ public final class Conversation {
         }
         lifespan = Math.max(npc.getChatSpeed(), lifespan);
         for (String text: texts) {
-            NPC bubble = npc.addSpeechBubble(manager, text, null);
+            NPC bubble = npc.addSpeechBubble(text);
             bubble.setLifespan((long)lifespan);
         }
         npc.updateSpeechBubbles();
@@ -132,7 +132,7 @@ public final class Conversation {
         if (npcIndex < 0 || npcIndex >= npcs.size()) return 0;
         NPC npc = npcs.get(npcIndex);
         if (question != null) {
-            npc.addSpeechBubble(manager, question, null).setLifespan(0L);
+            npc.addSpeechBubble(question).setLifespan(0L);
             BaseComponent[] questionMsg = npc.formatChat(Arrays.asList(question));
             for (Player player: players) {
                 player.spigot().sendMessage(questionMsg);
@@ -160,7 +160,7 @@ public final class Conversation {
             for (Player player: players) {
                 player.spigot().sendMessage(chatMessage);
             }
-            NPC bubble = npc.addSpeechBubble(manager, "" + ChatColor.WHITE + + (optIndex + 1) + ") " + opt.color + opt.text, null);
+            NPC bubble = npc.addSpeechBubble("" + ChatColor.WHITE + (optIndex + 1) + ") " + opt.color + opt.text);
             bubble.setLifespan(0L);
             optIndex += 1;
         }
@@ -228,7 +228,6 @@ public final class Conversation {
             NPC npc = iter.next();
             if (!npc.isValid() || of(npc) != this) {
                 iter.remove();
-                if (npc.getConversation() == this) npc.setConversation(null);
                 continue;
             }
         }
@@ -254,6 +253,7 @@ public final class Conversation {
     }
 
     public void enableNPC(NPC npc) {
+        if (!npc.isValid()) return;
         delegate.onNPCAdd(this, npc);
         npc.clearSpeechBubbles();
         npc.beginConversation(this);
@@ -262,17 +262,19 @@ public final class Conversation {
     public void disableNPC(NPC npc) {
         delegate.onNPCRemove(this, npc);
         npc.clearSpeechBubbles();
-        if (npc.getConversation() == this) npc.setConversation(null);
+        if (npc.getConversation() == this) npc.endConversation(this);
     }
 
     private void enablePlayer(Player player) {
         player.setMetadata(META_CONVO, new FixedMetadataValue(plugin, this));
         delegate.onPlayerAdd(this, player);
+        exclusives.add(player.getUniqueId());
     }
 
     private void disablePlayer(Player player) {
         if (of(player, plugin) == this) player.removeMetadata(META_CONVO, plugin);
         delegate.onPlayerRemove(this, player);
+        exclusives.remove(player.getUniqueId());
     }
 
     public static Conversation of(Player player, Plugin plugin) {

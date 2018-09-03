@@ -41,7 +41,6 @@ import org.bukkit.plugin.java.annotation.command.Command;
 import org.bukkit.plugin.java.annotation.command.Commands;
 import org.bukkit.plugin.java.annotation.dependency.Dependency;
 import org.bukkit.plugin.java.annotation.dependency.DependsOn;
-import org.bukkit.plugin.java.annotation.permission.ChildPermission;
 import org.bukkit.plugin.java.annotation.permission.Permission;
 import org.bukkit.plugin.java.annotation.permission.Permissions;
 import org.bukkit.plugin.java.annotation.plugin.ApiVersion;
@@ -49,7 +48,6 @@ import org.bukkit.plugin.java.annotation.plugin.Description;
 import org.bukkit.plugin.java.annotation.plugin.Plugin;
 import org.bukkit.plugin.java.annotation.plugin.Website;
 import org.bukkit.plugin.java.annotation.plugin.author.Author;
-import org.bukkit.util.Vector;
 import org.inventivetalent.packetlistener.PacketListenerAPI;
 import org.inventivetalent.packetlistener.handler.PacketHandler;
 import org.inventivetalent.packetlistener.handler.ReceivedPacket;
@@ -57,11 +55,11 @@ import org.inventivetalent.packetlistener.handler.SentPacket;
 import org.json.simple.JSONValue;
 
 @Plugin(name = "NPC", version = "0.1")
-@Description("Fake entities and more via custom packets")
+@Description("Custom entities and more via custom packets")
 @ApiVersion(ApiVersion.Target.v1_13)
 @DependsOn({
-        @Dependency("PacketListenerApi"),
-        @Dependency("GenericEvents")})
+    @Dependency("PacketListenerApi"),
+    @Dependency("GenericEvents")})
 @Author("StarTux")
 @Website("https://cavetale.com")
 @Commands({
@@ -81,24 +79,24 @@ import org.json.simple.JSONValue;
     @Permission(name = "npc.answer",
                 desc = "Use /npca",
                 defaultValue = PermissionDefault.TRUE)})
+@Getter
 public final class NPCPlugin extends JavaPlugin implements NPCManager {
     private final List<NPC> npcs = new ArrayList<>();
     private final List<Conversation> conversations = new ArrayList<>();
     private Random random = new Random(System.nanoTime());
     private PacketHandler packetHandler;
-    @Getter private static NPCPlugin instance;
-    private SpawnArea spawnArea;
-    @Getter private final Map<String, PlayerSkin> namedSkins = new HashMap<>();
-    @Getter private final Map<String, PlayerSkin> nameSkinCache = new HashMap<>();
-    @Getter private final Map<String, PlayerSkin> uuidSkinCache = new HashMap<>();
+    private static NPCPlugin instance;
+    private final Map<String, SpawnArea> spawnAreas = new HashMap<>();
+    private final Map<String, PlayerSkin> namedSkins = new HashMap<>();
+    private final Map<String, PlayerSkin> nameSkinCache = new HashMap<>();
+    private final Map<String, PlayerSkin> uuidSkinCache = new HashMap<>();
     private long ticksLived;
 
     @Override
     public void onEnable() {
         instance = this;
-        reloadConfig();
-        saveDefaultConfig();
         saveResource("skins.yml", false);
+        saveResource("spawnareas/spawn.yml", false);
         getServer().getScheduler().runTaskTimer(this, this::onTick, 1, 1);
         packetHandler = new PacketHandler() {
                 @Override
@@ -135,16 +133,28 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 }
             };
         PacketListenerAPI.addPacketHandler(packetHandler);
-        importConfig();
+        loadSpawnAreas();
         loadPlayerSkins();
         getCommand("npcanswer").setExecutor((cs, c, a, args) -> onNPCAnswer(cs, args));
     }
 
-    void importConfig() {
-        SpawnArea oldSpawnArea = spawnArea;
-        spawnArea = new SpawnArea(this, "spawn");
-        spawnArea.importConfig(getConfig().getConfigurationSection("spawn"));
-        if (oldSpawnArea != null) spawnArea.getNpcs().addAll(oldSpawnArea.getNpcs());
+    void loadSpawnAreas() {
+        Map<String, SpawnArea> oldSpawnAreas = new HashMap<>(spawnAreas);
+        spawnAreas.clear();
+        File dir = new File(getDataFolder(), "spawnareas");
+        dir.mkdirs();
+        for (File file: dir.listFiles()) {
+            if (!file.getName().endsWith(".yml")) continue;
+            String name = file.getName();
+            name = name.substring(0, name.length() - 4);
+            SpawnArea spawnArea = new SpawnArea(this, name);
+            spawnArea.importConfig(YamlConfiguration.loadConfiguration(file));
+            if (oldSpawnAreas.containsKey(name)) {
+                spawnArea.getNpcs().addAll(oldSpawnAreas.get(name).getNpcs());
+            }
+            spawnAreas.put(name, spawnArea);
+            getLogger().info("Spawn area loaded: " + name);
+        }
     }
 
     void loadPlayerSkins() {
@@ -306,7 +316,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 for (NPC npc: result) {
                     sender.sendMessage("" + index + ") " + npc.getDescription());
                     if (npc.getType() != NPC.Type.MARKER) {
-                        NPC bubble = npc.addSpeechBubble(this, "#" + npc.getId(), null);
+                        NPC bubble = npc.addSpeechBubble("#" + npc.getId());
                         bubble.getExclusive().add(player.getUniqueId());
                     }
                     index += 1;
@@ -322,12 +332,23 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
             }
             break;
         case "addchunk":
-            if (args.length == 1 && player != null) {
+            if (args.length == 2 && player != null) {
+                String name = args[1];
+                SpawnArea spawnArea = spawnAreas.get(name);
+                if (spawnArea == null) {
+                    sender.sendMessage("Spawn area not found: " + name);
+                    return true;
+                }
                 Chunk chunk = player.getLocation().getChunk();
                 spawnArea.addChunk(chunk.getX(), chunk.getZ());
-                spawnArea.exportConfig(getConfig().getConfigurationSection("spawn"));
-                saveConfig();
-                sender.sendMessage("Chunk added to spawn area");
+                YamlConfiguration config = spawnArea.exportConfig();
+                try {
+                    config.save(new File(new File(getDataFolder(), "spawnareas"), spawnArea.getId() + ".yml"));
+                    sender.sendMessage("Chunk added to spawn area: " + spawnArea.getId());
+                } catch (IOException ioe) {
+                    ioe.printStackTrace();
+                    sender.sendMessage("Error saving spawn area. See console.");
+                }
                 return true;
             }
             break;
@@ -453,6 +474,12 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         return true;
     }
 
+    @Override
+    public NPC findNPCWithUniqueName(String uniqueName) {
+        for (NPC npc: npcs) if (uniqueName.equals(npc.getUniqueName())) return npc;
+        return null;
+    }
+
     void onTick() {
         for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
             NPC npc = iter.next();
@@ -494,7 +521,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 iter.remove();
             }
         }
-        spawnArea.onTick();
+        for (SpawnArea spawnArea: spawnAreas.values()) {
+            spawnArea.onTick();
+        }
         ticksLived += 1;
     }
 

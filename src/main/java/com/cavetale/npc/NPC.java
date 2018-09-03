@@ -129,7 +129,7 @@ public final class NPC {
     private Location followLocation;
     private double followDistance;
     private double followDistanceSquared;
-    @Setter private Conversation conversation;
+    private Conversation conversation;
     @Setter private List<Object> speech;
     @Setter private Conversation.Delegate conversationDelegate;
     private NPC speechBubble;
@@ -490,7 +490,7 @@ public final class NPC {
         }
     }
 
-    public static enum DataVar {
+    public enum DataVar {
         ENTITY_FLAGS(0, DataType.BYTE, (byte)0), //mask
         ENTITY_AIR(1, DataType.INTEGER, (int)300),
         ENTITY_CUSTOM_NAME(2, DataType.OPT_CHAT, Optional.empty()),
@@ -945,6 +945,7 @@ public final class NPC {
             break;
         case PLAYER:
             sb.append(" ").append(name.replace("" + ChatColor.COLOR_CHAR, "&"));
+            if (playerSkin != null) sb.append("SKIN=").append(playerSkin);
             break;
         case MARKER:
             sb.append(" ").append(((Optional<IChatBaseComponent>)entityData.get(DataVar.ENTITY_CUSTOM_NAME)).orElse(null));
@@ -969,6 +970,7 @@ public final class NPC {
 
     public void disable() {
         delegate.onDisable(this);
+        if (conversation != null) endConversation(conversation);
         for (Watcher watcher: watchers.values()) {
             if (!watcher.player.isValid()) continue;
             stopWatch(watcher);
@@ -1010,14 +1012,17 @@ public final class NPC {
         }
     }
 
-    void beginConversation(Conversation conversation) {
-        this.conversation = conversation;
+    void beginConversation(Conversation convo) {
+        this.conversation = convo;
         task = Task.CONVERSATION;
-        delegate.onBeginConversation(this, conversation);
+        delegate.onBeginConversation(this, convo);
     }
 
-    void endConversation(Conversation conversation) {
-        delegate.onEndConversation(this, conversation);
+    void endConversation(Conversation convo) {
+        if (this.conversation == convo) {
+            this.conversation = null;
+            delegate.onEndConversation(this, convo);
+        }
     }
 
     // -- Public simulation methods for moving around the world.  Jobs and tasks included.
@@ -1545,8 +1550,8 @@ public final class NPC {
         }
     }
 
-    public void updateCustomName(String name) {
-        ChatComponentText txt = new ChatComponentText(ChatColor.translateAlternateColorCodes('&', name));
+    public void updateCustomName(String customName) {
+        ChatComponentText txt = new ChatComponentText(ChatColor.translateAlternateColorCodes('&', customName));
         setData(DataVar.ENTITY_CUSTOM_NAME, Optional.of(txt));
         if (watchers.isEmpty()) return;
         sendData(DataVar.ENTITY_CUSTOM_NAME, Optional.of(txt), 0L);
@@ -1560,13 +1565,17 @@ public final class NPC {
         return location.clone().add(0.0, (double)entity.getHeadHeight(), 0.0);
     }
 
-    public NPC addSpeechBubble(NPCManager manager, String text, Delegate del) {
+    public NPC addSpeechBubble(String text, Delegate del) {
         if (chatColor != null) text = chatColor + text;
         NPC bubble = new NPC(manager, Type.MARKER, getHeadLocation().add(0.0, 0.25, 0.0), text);
         if (del != null) bubble.delegate = del;
         bubble.lifespan = (long)chatSpeed;
         addSpeechBubble(bubble);
         return bubble;
+    }
+
+    public NPC addSpeechBubble(String text) {
+        return addSpeechBubble(text, null);
     }
 
     public void addSpeechBubble(NPC bubble) {

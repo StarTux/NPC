@@ -21,6 +21,7 @@ import org.bukkit.block.data.Bisected;
 import org.bukkit.block.data.type.Slab;
 import org.bukkit.block.data.type.Stairs;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 
@@ -33,13 +34,15 @@ final class SpawnArea {
     private int amount;
     private final List<NPC> npcs = new ArrayList<>();
     private final Random random = new Random(System.nanoTime());
+    private YamlConfiguration config;
 
     @Value
     static class Chunk {
         public final int x, z;
     }
 
-    void importConfig(ConfigurationSection config) {
+    void importConfig(YamlConfiguration cfg) {
+        this.config = cfg;
         world = config.getString("World");
         amount = config.getInt("Amount");
         for (List<Number> ls: (List<List<Number>>)config.getList("Chunks")) {
@@ -47,10 +50,11 @@ final class SpawnArea {
         }
     }
 
-    void exportConfig(ConfigurationSection config) {
+    public YamlConfiguration exportConfig() {
         config.set("World", world);
         config.set("Amount", amount);
         config.set("Chunks", chunks.stream().map(c -> Arrays.asList(c.x, c.z)).collect(Collectors.toList()));
+        return config;
     }
 
     void addChunk(int x, int z) {
@@ -131,9 +135,21 @@ final class SpawnArea {
             }
             if (npc.isBlockedAt(location)) continue;
             if (npc.collidesWithOther()) continue;
-            npc.setChatDisplayName(ChatColor.BLUE + "Villager");
-            npc.setChatColor(ChatColor.RED);
-            npc.setConversationDelegate(new SimpleConversationDelegate(plugin.getConfig().getConfigurationSection("spawn.convo")));
+            ConfigurationSection section = config.getConfigurationSection("RandomVillagers");
+            List<String> npckeys = new ArrayList<>(section.getKeys(false));
+            if (!npckeys.isEmpty()) {
+                String npckey = npckeys.get(random.nextInt(npckeys.size()));
+                section = section.getConfigurationSection(npckey);
+                npc.setConversationDelegate(new SimpleConversationDelegate(section.getConfigurationSection("Conversation")));
+                String npcname = npckey;
+                int npcIndex = 0;
+                while (plugin.findNPCWithUniqueName(npcname) != null) {
+                    npcIndex += 1;
+                    npcname = String.format("%s%02d", npckey, npcIndex);
+                }
+                npc.setUniqueName(npcname);
+                npc.setChatDisplayName(section.getString("DisplayName"));
+            }
             npc.setDelegate(new NPC.Delegate() {
                     @Override public void onTick(NPC n) { }
                     @Override public boolean canMoveIn(NPC n, Block block) {
@@ -187,12 +203,6 @@ final class SpawnArea {
                         default: break;
                         }
                         if (block.getBlockData() instanceof org.bukkit.block.data.type.GlassPane) return false;
-                        return true;
-                    }
-                    @Override public boolean onInteract(NPC n, Player player, boolean rightClick) {
-                        return true;
-                    }
-                    @Override public boolean onNewConversation(NPC n, Player player) {
                         return true;
                     }
                 });

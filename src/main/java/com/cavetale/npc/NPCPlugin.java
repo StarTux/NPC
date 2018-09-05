@@ -431,6 +431,12 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
+        case "areaspawn":
+            if (args.length == 3) {
+                SpawnArea spawnArea = spawnAreas.get(args[1]);
+                spawnArea.spawnNPC(args[2], player.getLocation());
+            }
+            break;
         default:
             break;
         }

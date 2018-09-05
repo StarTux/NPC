@@ -96,3 +96,18 @@ RandomVillagers:
       bye:
       - I wish I had
       - enchanted it.
+  jester:
+    DisplayName: §dJester
+    Conversation:
+      init:
+        say: Hello!
+        nextExit: a
+      a:
+        say: This is Joke A.
+        nextExit: b
+      b:
+        say: This is Joke B.
+        nextExit: c
+      c:
+        say: Are you laughing yet?
+      exit: Well bye.

@@ -132,6 +132,7 @@ public final class NPC {
     private Conversation conversation;
     @Setter private List<Object> speech;
     @Setter private Conversation.Delegate conversationDelegate;
+    @Setter private String conversationState;
     private NPC speechBubble;
     @Setter private String chatDisplayName;
     @Setter private ChatColor chatColor;
@@ -1007,6 +1008,10 @@ public final class NPC {
                     convo.add(this);
                     convo.setDelegate(conversationDelegate);
                     manager.enableConversation(convo);
+                    if (conversationState != null) {
+                        convo.setState(conversationState);
+                        conversationState = null;
+                    }
                 }
             }
         }

@@ -108,6 +108,9 @@ public final class SimpleConversationDelegate implements Conversation.Delegate {
         }
         if (section.isString("next")) {
             convo.setState(section.getString("next"));
+        } else if (section.isString("nextExit")) {
+            convo.getNpcs().get(0).setConversationState(section.getString("nextExit"));
+            convo.setState("exit");
         } else {
             convo.setState("exit");
         }

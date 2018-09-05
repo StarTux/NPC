@@ -110,4 +110,3 @@ RandomVillagers:
         nextExit: c
       c:
         say: Are you laughing yet?
-      exit: Well bye.

@@ -1,15 +1,41 @@
 World: Spawn
 Chunks:
+- - 131
+  - 56
+- - 130
+  - 53
+- - 130
+  - 54
 - - 130
   - 55
 - - 130
   - 56
 - - 130
   - 57
+- - 130
+  - 58
+- - 130
+  - 59
+- - 130
+  - 60
+- - 130
+  - 61
+- - 133
+  - 54
+- - 133
+  - 55
+- - 132
+  - 53
+- - 132
+  - 54
+- - 132
+  - 56
+- - 131
+  - 53
 Amount: 100
 RandomVillagers:
   pets:
-    DisplayName: '§aPet Lover'
+    DisplayName: §aPet Lover
     Conversation:
       init: Hello, Friend.
       how:
@@ -35,4 +61,38 @@ RandomVillagers:
         next: bye
       timeout: Perhaps another time.
       bye: Well, cya later then.
-  
+  monsters:
+    DisplayName: §cConverned Citizen
+    Conversation:
+      init: I heard monsters are returning.
+  lovelyday:
+    DisplayName: §9Happy Villager
+    Conversation:
+      init: What a a lovely day.
+  welcome:
+    DisplayName: §aJolly Person
+    Conversation:
+      init: Welcome to Cavetale!
+  dyk01:
+    DisplayName: §eSmarty
+    Conversation:
+      init:
+      - Did you know that
+      - you can catch mobs?
+  lostpick:
+    DisplayName: §dMiner
+    Conversation:
+      init:
+      - I lost my pickaxe.
+      - Have you seen it?
+      bye:
+      - Oh well, it will
+      - turn up...
+  axebroke:
+    DisplayName: §dLumberjack
+    Conversation:
+      init:
+      - My axe broke.
+      bye:
+      - I wish I had
+      - enchanted it.

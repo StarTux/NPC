@@ -96,17 +96,392 @@ RandomVillagers:
       bye:
       - I wish I had
       - enchanted it.
-  jester:
-    DisplayName: §dJester
+  weirdo:
+    DisplayName: Riley
     Conversation:
       init:
-        say: Hello!
+      - Yesterday I heard a guy say the world was round...
+      - What a weirdo.
+  sleep:
+    DisplayName: Quinn
+    Conversation:
+      init:
+      - I wonder where all those black flying things came from...
+      - Perhaps I'll sleep on it...
+  beach:
+    DisplayName: Taylor
+    Conversation:
+      init:
+      - I love the ocean!
+      - The water is so warm and colorful!
+  organ:
+    DisplayName: Charlie
+    Conversation:
+      init:
+      - The church organ is really nice.
+      - You should check it out!
+  farmer:
+    DisplayName: §2Farmer
+    Conversation:
+      init:
+      - The weather is perfect here,
+      - Crops grow year round!
+  poison:
+    DisplayName: §aUnlucky Farmer
+    Conversation:
+      init:
+      - Just my luck...
+      - All of my potatos turned out poisonous...
+  birthday:
+    DisplayName: Elliott
+    Conversation:
+      init:
+      - It's my birthday!
+  work:
+    DisplayName: Dakota
+    Conversation:
+      init:
+      - Sorry, im late for work!
+  cowboy:
+    DisplayName: Dallas
+    Conversation:
+      init:
+      - Howdy
+  sunrise:
+    DisplayName: Harley
+    Conversation:
+      init:
+      - Morning are my favorite.
+      - I love watching the sun rise!
+  shy:
+    DisplayName: Nervous Nellie
+    Conversation:
+      init:
+      - uh... Hi.
+      bye:
+      - Sorry, I... uh... 
+      - have somewhere to be.
+  shy2:
+    DisplayName: Ellis
+    Conversation:
+      init:
+      - ...
+      - ...
+      - Oh, you're talking to me?
+      bye:
+      - Uhm... sorry I don't know.
+  grump:
+    DisplayName: Tired Grump
+    Conversation:
+      init:
+      - Excuse you.
+      bye:
+      - Sigh, I don't have time for this.
+  grump2:
+    DisplayName: Grump
+    Conversation:
+      init:
+      - Do I know you?
+      bye:
+      - Go bother someone else.
+  jealous:
+    DisplayName: Marley
+    Conversation:
+      init:
+      - Whoa, cool shoes!
+      bye:
+      - I wish I had a pair...
+  jealous2:
+    DisplayName: Skyler
+    Conversation:
+      init:
+      - Cool! 
+      - Where did you get that.
+      bye:
+      - Oh... I don't think I'd be able to do that...
+  proud:
+    DisplayName: Office Worker
+    Conversation:
+      init:
+      - Why am so happy?
+      - I just got a promotion!
+  proud2:
+    DisplayName: Sweaty Athlete
+    Conversation:
+      init:
+      - Phew, that's my fastest time yet!
+  tulip:
+    DisplayName: Gardener
+    Conversation:
+      init:
+      - The flowers started to bloom today.
+      - My favorite are Tulips!
+  safety:
+    DisplayName: Karter
+    Conversation:
+      init:
+      - My family and I are safe here.
+  explorer:
+    DisplayName: Curious Stranger
+    Conversation:
+      init:
+      - You look like some kind of explorer.
+      - Tell me all about your adventures!
+      bye:
+      - Wow, that sounds really interesting!
+  traveler:
+    DisplayName: Remi
+    Conversation:
+      init:
+      - Oh, I see you're a traveler as well.
+      bye:
+      - I'd love to hear some stories but
+      - I have to go now.
+  optimistic:
+    DisplayName: Sage
+    Conversation:
+      init:
+      - Today looks like it's going to be a good day
+  optimistic2:
+    DisplayName: Ariel
+    Conversation:
+      init:
+      - I wonder who I'll help today.
+  compliment:
+    DisplayName: Stranger
+    Conversation:
+      init:
+      - You look great today!
+  compliment2:
+    DisplayName: Reese
+    Conversation:
+      init:
+      - I like your style!
+  compliment3:
+    DisplayName: London
+    Conversation:
+      init:
+      - That color is perfect on you!
+  compliment4:
+    DisplayName: Off-Putting Stranger
+    Conversation:
+      init:
+      - You smell really good!
+  compliment5:
+    DisplayName: Jordan
+    Conversation:
+      init:
+      - You have a great smile!
+  tired:
+    DisplayName: Alex
+    Conversation:
+      init:
+      - I've been walking for days!
+  tired2:
+    DisplayName: Casey
+    Conversation:
+      init:
+      - Sigh, I need to lie down somewhere.
+  daydream:
+    DisplayName: Dana
+    Conversation:
+      init:
+      - ...
+      - Oh! Sorry I was day dreaming.
+      bye:
+      - See you later!
+  daydream2:
+    DisplayName: Dillon
+    Conversation:
+      init:
+      - ...
+      - Huh?
+      bye:
+      - Sorry, I must have been daydreaming.
+  fisher:
+    DisplayName: Fisherman
+    Conversation:
+      init:
+      - The fish are bountiful here.
+  fisher2:
+    DisplayName: Lying Fisherman
+    Conversation:
+      init:
+      - I swear, Davy. It was THIS BIG!
+  worker:
+    DisplayName: Busy Worker
+    Conversation:
+      init:
+      - Sorry, I'm very busy right now.
+  worker2:
+    DisplayName: Worker
+    Conversation:
+      init:
+      - There are always boats that need unloading at the dock.
+  worker3:
+    DisplayName: Merchant
+    Conversation:
+      init:
+      - We just got a shipment of pumpkins in.
+      - You should stop by!
+  worker4:
+    DisplayName: Baker
+    Conversation:
+      init:
+      - Today I got an order for fifty cakes!
+      - I hope the store has eggs.
+  worker5:
+    DisplayName: Builder Bob
+    Conversation:
+      init:
+      - Don't you just hate when you run out of stairs?
+  fortune:
+    DisplayName: Fortune Teller
+    Conversation:
+      init:
+      - I sense a greatness inside of you.
+      bye:
+      - Don't ignore your destiny.
+  mysterious:
+    DisplayName: §kZygot
+    Conversation:
+      init:
+      - The end and the beginning are near.
+  question:
+    DisplayName: Jamie
+    Conversation:
+      init:
+      - Excuse me, do you know where the nearest doctor is?
+      bye:
+      - Nevermind, I'll find it myself.
+  question2:
+    DisplayName: Kerry
+    Conversation:
+      init:
+      - Hi there. 
+      - Can you help me find a bookstore?
+      bye:
+      - Oh, sorry I'll ask someone else.
+  question3:
+    DisplayName: Lane
+    Conversation:
+      init:
+      - Uhm pardon me.
+      - Do you know where I can get something to eat here?
+      bye:
+      - Thanks, I'll try that.
+  hug:
+    DisplayName: Noel
+    Conversation:
+      init:
+      - Free hugs!
+      bye:
+      - Be sure to pass it along!
+  national:
+    DisplayName: Emery
+    Conversation:
+      init:
+      - Hiya love, how you be doin?
+      bye:
+      - Cheers!
+  national2:
+    DisplayName: Finlay
+    Conversation:
+      init:
+      - How's about yea?
+      bye:
+      - Slán
+  national3:
+    DisplayName: Jesse
+    Conversation:
+      init:
+      - G'day mate,
+      - Ow ya goin'?
+      bye:
+      - Later
+  national4:
+    DisplayName: Bryn
+    Conversation:
+      init:
+      - Hallo!
+      bye:
+      - Ha det.
+  national5:
+    DisplayName: Claude
+    Conversation:
+      init:
+      - Buenos días.
+      bye:
+      - Adiós
+  jokes:
+    DisplayName: §cFool
+    Conversation:
+      init:
+        say: Hey there, Want to hear some jokes?
         nextExit: a
       a:
-        say: This is Joke A.
+        say: When you look really closely, all mirrors look like eyeballs.
         nextExit: b
       b:
-        say: This is Joke B.
+        say: I plan on living forever. So far, so good.
         nextExit: c
       c:
+        say: What's the difference between a good joke and a bad joke timing.
+        nextExit: d
+      d:
         say: Are you laughing yet?
+  jokes2:
+    DisplayName: §dComedian
+    Conversation:
+      init:
+        say: Excuse me, can I try some jokes on you?
+        nextExit: a
+      a:
+        say: I couldn't figure out why the baseball kept getting larger. Then it hit me.
+        nextExit: b
+      b:
+        say: This is my step ladder. I never knew my real ladder.
+        nextExit: c
+      c:
+        say: My friend says to me, What rhymes with orange? and I said... No it doesn't.
+        nextExit: d
+      d:
+        say: A blind man walks into a bar... And a table... And a chair...
+        nextExit: e
+      e:
+        say: What do you think?
+  jokes3:
+    DisplayName: §3Pun Master
+    Conversation:
+      init:
+        say: Hello! You look like someone who enjoys punny jokes!
+        nextExit: a
+      a:
+        say: What do you call a fake noodle? ...An impasta!
+        nextExit: b
+      b:
+        say: Towels can’t tell jokes. They have a dry sense of humor.
+        nextExit: c
+      c:
+        say: How do trees access the internet? ...They log on!
+        nextExit: d
+      d:
+        say: What do you call a cow that just gave birth? ...Decalfinated!
+        nextExit: e
+      e:
+        say: I did a theatrical performance on puns. It was a play on words.
+        nextExit: f
+      f:
+        say: Do you know sign language? You should learn it, it’s pretty handy.
+        nextExit: g
+      g:
+        say: What do you call a beautiful pumpkin? ...GOURDgeous.
+        nextExit: h
+      h:
+        say: What do cows tell each other at bedtime? ...Dairy tales!
+        nextExit: i
+      i:
+        say: Sausage puns are the wurst.
+        nextExit: j
+      j:
+        say: Hey! Where you going!?

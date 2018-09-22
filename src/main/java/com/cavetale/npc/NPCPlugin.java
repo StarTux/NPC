@@ -379,6 +379,22 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
+        case "hi":
+            if (args.length == 2 && player != null) {
+                boolean doAdd = args[0].equals("addblocks");
+                String name = args[1];
+                SpawnArea spawnArea = spawnAreas.get(name);
+                if (spawnArea == null) {
+                    sender.sendMessage("Spawn area not found: " + name);
+                    return true;
+                }
+                for (SpawnArea.Vec vec: spawnArea.getBlocks()) {
+                    Block block = player.getWorld().getBlockAt(vec.getX(), vec.getY(), vec.getZ());
+                    player.sendBlockChange(block.getLocation(), Material.GLOWSTONE.createBlockData());
+                }
+                return true;
+            }
+            break;
         case "sign":
             if (args.length == 1 && player != null) {
                 PlayerConnection connection = ((CraftPlayer)player).getHandle().playerConnection;

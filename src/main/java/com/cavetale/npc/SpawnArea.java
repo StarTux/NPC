@@ -127,11 +127,12 @@ final class SpawnArea {
         npc.setConversationDelegate(new SimpleConversationDelegate(section.getConfigurationSection("Conversation")));
         npc.setDelegate(new NPC.Delegate() {
                 @Override public void onTick(NPC n) { }
-                @Override public boolean canMoveIn(NPC n, Block block) {
-                    return true;
+                @Override public boolean canMoveIn(NPC n, Block b) {
+                    b = b.getRelative(0, -1, 0);
+                    return blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()));
                 }
-                @Override public boolean canMoveOn(NPC n, Block block) {
-                    return blocks.contains(block);
+                @Override public boolean canMoveOn(NPC n, Block b) {
+                    return blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()));
                 }
             });
         if (plugin.enableNPC(npc)) {

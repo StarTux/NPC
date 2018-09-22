@@ -12,6 +12,7 @@ import lombok.Data;
 import lombok.Value;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
@@ -30,35 +31,39 @@ final class SpawnArea {
     private final NPCPlugin plugin;
     private final String id;
     private String world;
-    private final Set<Chunk> chunks = new HashSet<>();
+    private final Set<Vec> blocks = new HashSet<>();
     private int amount;
     private final List<NPC> npcs = new ArrayList<>();
     private final Random random = new Random(System.nanoTime());
     private YamlConfiguration config;
 
     @Value
-    static class Chunk {
-        public final int x, z;
+    static class Vec {
+        public final int x, y, z;
     }
 
     void importConfig(YamlConfiguration cfg) {
         this.config = cfg;
         world = config.getString("World");
         amount = config.getInt("Amount");
-        for (List<Number> ls: (List<List<Number>>)config.getList("Chunks")) {
-            chunks.add(new Chunk(ls.get(0).intValue(), ls.get(1).intValue()));
+        for (List<Number> ls: (List<List<Number>>)config.getList("Blocks")) {
+            blocks.add(new Vec(ls.get(0).intValue(), ls.get(1).intValue(), ls.get(2).intValue()));
         }
     }
 
     public YamlConfiguration exportConfig() {
         config.set("World", world);
         config.set("Amount", amount);
-        config.set("Chunks", chunks.stream().map(c -> Arrays.asList(c.x, c.z)).collect(Collectors.toList()));
+        config.set("Blocks", blocks.stream().map(b -> Arrays.asList(b.x, b.y, b.z)).collect(Collectors.toList()));
         return config;
     }
 
-    void addChunk(int x, int z) {
-        chunks.add(new Chunk(x, z));
+    void addBlock(int x, int y, int z) {
+        blocks.add(new Vec(x, y, z));
+    }
+
+    void removeBlock(int x, int y, int z) {
+        blocks.remove(new Vec(x, y, z));
     }
 
     void onTick() {
@@ -70,73 +75,25 @@ final class SpawnArea {
             if (!iter.next().isValid()) iter.remove();
         }
         if (npcs.size() >= amount) return;
-        // Collect player chunks and remove chunks which are too close
-        // to players
-        Set<Chunk> playerChunks = new HashSet<>();
-        Set<Chunk> validChunks = new HashSet<>(chunks);
-        for (Player player: players) {
-            org.bukkit.Chunk playerChunk = player.getLocation().getChunk();
-            int px = playerChunk.getX();
-            int pz = playerChunk.getZ();
-            playerChunks.add(new Chunk(px, pz));
-            for (int z = -1; z <= 1; z += 1) {
-                for (int x = -1; x <= 1; x += 1) {
-                    validChunks.remove(new Chunk(px + x, pz + z));
-                }
-            }
+        // Pick a random block
+        if (blocks.isEmpty()) return;
+        Vec spawnVec = new ArrayList<>(blocks).get(random.nextInt(blocks.size()));
+        Block spawnBlock = bWorld.getBlockAt(spawnVec.x, spawnVec.y, spawnVec.z);
+        Chunk spawnChunk = spawnBlock.getChunk();
+        if (!spawnBlock.getWorld().isChunkLoaded(spawnChunk.getX(), spawnChunk.getZ())) return;
+        Location location = spawnBlock.getLocation().add(0.5, 1.0, 0.5);
+        ConfigurationSection section = config.getConfigurationSection("RandomVillagers");
+        List<String> npckeys = new ArrayList<>(section.getKeys(false));
+        if (npckeys.isEmpty()) return;
+        String npckey = npckeys.get(random.nextInt(npckeys.size()));
+        section = section.getConfigurationSection(npckey);
+        String npcname = npckey;
+        int npcIndex = 0;
+        while (plugin.findNPCWithUniqueName(npcname) != null) {
+            npcIndex += 1;
+            npcname = String.format("%s%02d", npckey, npcIndex);
         }
-        // Find chunks close enough to players
-        Set<Chunk> spawnChunks = new HashSet<>();
-        for (Chunk playerChunk: playerChunks) {
-            for (int z = -3; z <= 3; z += 1) {
-                for (int x = -3; x <= 3; x += 1) {
-                    if (Math.abs(x) < 2 && Math.abs(z) < 2) continue;
-                    Chunk chunk = new Chunk(playerChunk.getX() + x, playerChunk.getZ() + z);
-                    if (validChunks.contains(chunk)) spawnChunks.add(chunk);
-                }
-            }
-        }
-        if (spawnChunks.isEmpty()) return;
-        for (Chunk chunk: spawnChunks) {
-            int chunkNPCCount = 0;
-            for (NPC other: npcs) {
-                int x = other.getLocation().getBlockX() >> 4;
-                int z = other.getLocation().getBlockZ() >> 4;
-                if (x == chunk.getX() && z == chunk.getZ()) {
-                    chunkNPCCount += 1;
-                }
-            }
-            if (chunkNPCCount > 2) continue;
-            int x = (chunk.getX() << 4) + random.nextInt(16);
-            int z = (chunk.getZ() << 4) + random.nextInt(16);
-            Block block = bWorld.getHighestBlockAt(x, z);
-            while (block.getY() >= 32 && !canSpawnAt(block)) block = block.getRelative(0, -1, 0);
-            if (block.getY() < 32) continue;
-            if (!Tag.STONE_BRICKS.isTagged(block.getRelative(0, -1, 0).getType())) continue;
-            Location location = block.getLocation().add(0.5, 0.0, 0.5);
-            ConfigurationSection section = config.getConfigurationSection("RandomVillagers");
-            List<String> npckeys = new ArrayList<>(section.getKeys(false));
-            if (npckeys.isEmpty()) return;
-            String npckey = npckeys.get(random.nextInt(npckeys.size()));
-            section = section.getConfigurationSection(npckey);
-            String npcname = npckey;
-            int npcIndex = 0;
-            while (plugin.findNPCWithUniqueName(npcname) != null) {
-                npcIndex += 1;
-                npcname = String.format("%s%02d", npckey, npcIndex);
-            }
-            final NPC npc = spawnNPC(npcname, location);
-        }
-    }
-
-    private boolean canSpawnAt(Block block) {
-        if (!block.isEmpty()) return false;
-        if (!block.getRelative(0, 1, 0).isEmpty()) return false;
-        Block floor = block.getRelative(0, -1, 0);
-        if (floor.isEmpty()) return false;
-        Material floorMat = floor.getType();
-        if (!floorMat.isOccluding() || !floorMat.isSolid() || floorMat.isTransparent()) return false;
-        return true;
+        final NPC npc = spawnNPC(npcname, location);
     }
 
     NPC spawnNPC(String name, Location location) {
@@ -171,57 +128,10 @@ final class SpawnArea {
         npc.setDelegate(new NPC.Delegate() {
                 @Override public void onTick(NPC n) { }
                 @Override public boolean canMoveIn(NPC n, Block block) {
-                    switch (block.getType()) {
-                    case GRASS:
-                    case WHEAT:
-                    case POTATOES:
-                    case CARROTS:
-                    case BEETROOTS:
-                    case TALL_GRASS:
-                    case TALL_SEAGRASS:
-                    case LARGE_FERN:
-                    case ROSE_BUSH:
-                    case SUNFLOWER:
-                    case LILAC:
-                    case PEONY:
-                        return false;
-                    default:
-                        return true;
-                    }
+                    return true;
                 }
                 @Override public boolean canMoveOn(NPC n, Block block) {
-                    Material mat = block.getType();
-                    if (Tag.LEAVES.isTagged(mat)) return false;
-                    if (Tag.LOGS.isTagged(mat)) return false;
-                    if (Tag.SLABS.isTagged(mat) && ((Slab)block.getBlockData()).getType() == Slab.Type.TOP) {
-                        return false;
-                    }
-                    if (Tag.TRAPDOORS.isTagged(mat)) return false;
-                    if (Tag.STAIRS.isTagged(mat) && ((Stairs)block.getBlockData()).getHalf() == Bisected.Half.TOP) {
-                        return false;
-                    }
-                    switch (mat) {
-                    case OAK_FENCE:
-                    case SPRUCE_FENCE:
-                    case BIRCH_FENCE:
-                    case DARK_OAK_FENCE:
-                    case JUNGLE_FENCE:
-                    case ACACIA_FENCE:
-                    case OAK_FENCE_GATE:
-                    case SPRUCE_FENCE_GATE:
-                    case BIRCH_FENCE_GATE:
-                    case DARK_OAK_FENCE_GATE:
-                    case JUNGLE_FENCE_GATE:
-                    case ACACIA_FENCE_GATE:
-                    case FARMLAND:
-                    case SIGN:
-                    case WALL_SIGN:
-                    case HAY_BLOCK:
-                        return false;
-                    default: break;
-                    }
-                    if (block.getBlockData() instanceof org.bukkit.block.data.type.GlassPane) return false;
-                    return true;
+                    return blocks.contains(block);
                 }
             });
         if (plugin.enableNPC(npc)) {

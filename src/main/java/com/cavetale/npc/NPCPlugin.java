@@ -332,20 +332,46 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
-        case "addchunk":
+        case "addblocks":
+        case "removeblocks":
             if (args.length == 2 && player != null) {
+                boolean doAdd = args[0].equals("addblocks");
                 String name = args[1];
                 SpawnArea spawnArea = spawnAreas.get(name);
                 if (spawnArea == null) {
                     sender.sendMessage("Spawn area not found: " + name);
                     return true;
                 }
-                Chunk chunk = player.getLocation().getChunk();
-                spawnArea.addChunk(chunk.getX(), chunk.getZ());
+                List<Integer> a = (List<Integer>)player.getMetadata("SelectionA").get(0).value();
+                List<Integer> b = (List<Integer>)player.getMetadata("SelectionB").get(0).value();
+                int ax = a.get(0);
+                int ay = a.get(1);
+                int az = a.get(2);
+                int bx = b.get(0);
+                int by = b.get(1);
+                int bz = b.get(2);
+                for (int y = Math.min(ay, by); y <= Math.max(ay, by); y += 1) {
+                    for (int z = Math.min(az, bz); z <= Math.max(az, bz); z += 1) {
+                        for (int x = Math.min(ax, bx); x <= Math.max(ax, bx); x += 1) {
+                            if (doAdd) {
+                                Block block = player.getWorld().getBlockAt(x, y, z);
+                                if (block.getType().isSolid() && !block.getRelative(0, 1, 0).getType().isSolid() && !block.getRelative(0, 2, 0).getType().isSolid()) {
+                                    spawnArea.addBlock(x, y, z);
+                                }
+                            } else {
+                                spawnArea.removeBlock(x, y, z);
+                            }
+                        }
+                    }
+                }
                 YamlConfiguration config = spawnArea.exportConfig();
                 try {
                     config.save(new File(new File(getDataFolder(), "spawnareas"), spawnArea.getId() + ".yml"));
-                    sender.sendMessage("Chunk added to spawn area: " + spawnArea.getId());
+                    if (doAdd) {
+                        sender.sendMessage("Blocks added to spawn area: " + spawnArea.getId());
+                    } else {
+                        sender.sendMessage("Blocks removed from spawn area: " + spawnArea.getId());
+                    }
                 } catch (IOException ioe) {
                     ioe.printStackTrace();
                     sender.sendMessage("Error saving spawn area. See console.");
@@ -435,6 +461,13 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
             if (args.length == 3) {
                 SpawnArea spawnArea = spawnAreas.get(args[1]);
                 spawnArea.spawnNPC(args[2], player.getLocation());
+            }
+            break;
+        case "reload":
+            if (args.length == 0) {
+                loadSpawnAreas();
+                sender.sendMessage("Spawn areas reloaded.");
+                return true;
             }
             break;
         default:

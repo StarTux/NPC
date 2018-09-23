@@ -480,7 +480,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
             }
             break;
         case "reload":
-            if (args.length == 0) {
+            if (args.length == 1) {
                 loadSpawnAreas();
                 sender.sendMessage("Spawn areas reloaded.");
                 return true;

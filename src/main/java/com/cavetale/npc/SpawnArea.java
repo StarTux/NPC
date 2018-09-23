@@ -128,11 +128,15 @@ final class SpawnArea {
         npc.setDelegate(new NPC.Delegate() {
                 @Override public void onTick(NPC n) { }
                 @Override public boolean canMoveIn(NPC n, Block b) {
-                    return blocks.contains(new Vec(b.getX(), b.getY() - 1, b.getZ()))
-                        || blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()));
+                    if (blocks.contains(new Vec(b.getX(), b.getY() - 1, b.getZ()))) return true;
+                    if (blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()))) return true;
+                    if (b.isEmpty() && blocks.contains(new Vec(b.getX(), b.getY() - 2, b.getZ()))) return true;
+                    return false;
                 }
                 @Override public boolean canMoveOn(NPC n, Block b) {
-                    return blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()));
+                    if (blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()))) return true;
+                    if (b.isEmpty() && blocks.contains(new Vec(b.getX(), b.getY() - 1, b.getZ()))) return true;
+                    return false;
                 }
             });
         if (plugin.enableNPC(npc)) {

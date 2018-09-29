@@ -110,7 +110,6 @@ final class SpawnArea {
                 sb.append(ChatColor.values()[random.nextInt(ChatColor.values().length)]);
             }
             npc = new NPC(plugin, NPC.Type.PLAYER, location, sb.toString(), playerSkin);
-            npc.setJob(random.nextInt(5) == 0 ? NPC.Job.DANCE : NPC.Job.WANDER);
         } else {
             npc = new NPC(plugin, NPC.Type.MOB, location, EntityType.VILLAGER);
             npc.setData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));
@@ -118,8 +117,8 @@ final class SpawnArea {
                 npc.setBaby(true);
                 npc.setData(NPC.DataVar.AGEABLE_BABY, true);
             }
-            npc.setJob(NPC.Job.WANDER);
         }
+        npc.setJob(NPC.Job.WANDER);
         if (npc.isBlockedAt(location)) return null;
         if (npc.collidesWithOther()) return null;
         npc.setUniqueName(name);

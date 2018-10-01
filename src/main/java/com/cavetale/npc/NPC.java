@@ -94,8 +94,8 @@ public final class NPC {
     private Location lastLocation, trackLocation, fromLocation, toLocation;
     private double locationError = 0.0, locationMoved = 0.0;
     private boolean forceLookUpdate, forceTeleport;
-    private double viewDistance = 128.0;
-    private double viewDistanceSquared = 16384.0;
+    private double viewDistance = 80.0;
+    private double viewDistanceSquared = 6400.0;
     @Setter private boolean hideNameTag = true; // TODO setter which updates things
     @Setter private boolean onGround;
     // Identity
@@ -113,7 +113,8 @@ public final class NPC {
     private long ticksLived;
     @Setter private long lifespan = -1;
     private long lastInteract;
-    @Setter private boolean removeWhenUnwatched;
+    @Setter private boolean removeWhenUnwatched = true;
+    @Setter private boolean removeWhenChunkUnloaded = true;
     // Job
     @Setter private Job job;
     @Setter private Delegate delegate = (n) -> { };
@@ -137,7 +138,9 @@ public final class NPC {
     @Setter private String chatDisplayName;
     @Setter private ChatColor chatColor;
     @Setter private int chatSpeed = 20;
-    private final List<History> history = new ArrayList<>();
+    private final List<Vec3i> history = new ArrayList<>();
+    private final List<Vec3i> path = new ArrayList<>();
+    private int pathIndex;
     @Setter private boolean debug;
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
@@ -314,6 +317,7 @@ public final class NPC {
 
         default void onEndConversation(NPC npc, Conversation conversation) { }
 
+        default void didFinishPath(NPC npc) { }
     }
 
     @RequiredArgsConstructor
@@ -366,7 +370,7 @@ public final class NPC {
     }
 
     @Value
-    static final class History {
+    static final class Vec3i {
         public final int x, y, z;
     }
 
@@ -408,7 +412,7 @@ public final class NPC {
     }
 
     public enum Job {
-        NONE, WANDER, WIGGLE, DANCE, SPEECH_BUBBLE;
+        NONE, WANDER, WIGGLE, DANCE, SPEECH_BUBBLE, WALK_PATH;
     }
 
     public enum Task {
@@ -765,7 +769,14 @@ public final class NPC {
         updateMovement();
         updateWatchers();
         ticksLived += 1;
-        if (lifespan > 0 && lifespan < ticksLived) valid = false;
+        if (lifespan > 0 && lifespan < ticksLived) {
+            valid = false;
+            return;
+        }
+        if (!location.getChunk().isLoaded()) {
+            if (removeWhenChunkUnloaded) valid = false;
+            return;
+        }
     }
 
     /**
@@ -775,11 +786,11 @@ public final class NPC {
      */
     public void updateMovement() {
         if (history.isEmpty()) {
-            history.add(new History(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+            history.add(new Vec3i(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
         } else {
-            History hist = history.get(history.size() - 1);
+            Vec3i hist = history.get(history.size() - 1);
             if (hist.x != location.getBlockX() || hist.y != location.getBlockY() || hist.z != location.getBlockZ()) {
-                history.add(new History(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
+                history.add(new Vec3i(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
             }
         }
         boolean didMove =
@@ -1119,6 +1130,12 @@ public final class NPC {
                 return;
             }
             if (followOffset != null) location = location.add(followOffset);
+            break;
+        case WALK_PATH:
+            if (pathIndex >= path.size()) {
+                delegate.didFinishPath(this);
+                if (pathIndex >= path.size()) return;
+            }
             break;
         default:
             throw new IllegalStateException("Unhandled Job: " + job);

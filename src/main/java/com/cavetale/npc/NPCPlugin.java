@@ -24,7 +24,6 @@ import net.minecraft.server.v1_13_R2.BlockPosition;
 import net.minecraft.server.v1_13_R2.PacketPlayInUseEntity;
 import net.minecraft.server.v1_13_R2.PacketPlayOutOpenSignEditor;
 import net.minecraft.server.v1_13_R2.PlayerConnection;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -441,7 +440,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                     player.sendMessage("Not found: #" + id);
                     return true;
                 }
-                for (NPC.History hist: npc.getHistory()) {
+                for (NPC.Vec3i hist: npc.getHistory()) {
                     Block block = player.getWorld().getBlockAt(hist.x, hist.y, hist.z);
                     player.getWorld().spawnParticle(Particle.END_ROD, block.getLocation().add(0.5, 0.5, 0.5), 1, 0, 0, 0, 0);
                 }
@@ -532,7 +531,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
 
     @Override
     public NPC findNPCWithUniqueName(String uniqueName) {
-        for (NPC npc: npcs) if (uniqueName.equals(npc.getUniqueName())) return npc;
+        for (NPC npc: npcs) {
+            if (uniqueName.equals(npc.getUniqueName())) return npc;
+        }
         return null;
     }
 

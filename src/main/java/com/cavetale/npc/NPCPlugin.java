@@ -341,14 +341,12 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                     sender.sendMessage("Spawn area not found: " + name);
                     return true;
                 }
-                List<Integer> a = (List<Integer>)player.getMetadata("SelectionA").get(0).value();
-                List<Integer> b = (List<Integer>)player.getMetadata("SelectionB").get(0).value();
-                int ax = a.get(0);
-                int ay = a.get(1);
-                int az = a.get(2);
-                int bx = b.get(0);
-                int by = b.get(1);
-                int bz = b.get(2);
+                int ax = player.getMetadata("SelectionAX").get(0).asInt();
+                int ay = player.getMetadata("SelectionAY").get(0).asInt();
+                int az = player.getMetadata("SelectionAZ").get(0).asInt();
+                int bx = player.getMetadata("SelectionBX").get(0).asInt();
+                int by = player.getMetadata("SelectionBY").get(0).asInt();
+                int bz = player.getMetadata("SelectionBZ").get(0).asInt();
                 for (int y = Math.min(ay, by); y <= Math.max(ay, by); y += 1) {
                     for (int z = Math.min(az, bz); z <= Math.max(az, bz); z += 1) {
                         for (int x = Math.min(ax, bx); x <= Math.max(ax, bx); x += 1) {

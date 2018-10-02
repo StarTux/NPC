@@ -2,11 +2,14 @@ package com.cavetale.npc;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Value;
@@ -35,6 +38,9 @@ final class SpawnArea {
     @Value
     static class Vec {
         public final int x, y, z;
+        static Vec v(int x, int y, int z) {
+            return new Vec(x, y, z);
+        }
     }
 
     void importConfig(YamlConfiguration cfg) {
@@ -88,10 +94,10 @@ final class SpawnArea {
             npcIndex += 1;
             npcname = String.format("%s%02d", npckey, npcIndex);
         }
-        final NPC npc = spawnNPC(npcname, location);
+        final NPC npc = spawnRandomVillager(npcname, location);
     }
 
-    NPC spawnNPC(String name, Location location) {
+    NPC spawnRandomVillager(String name, Location location) {
         ConfigurationSection section = config.getConfigurationSection("RandomVillagers." + name);
         if (section == null) return null;
         NPC npc;
@@ -113,24 +119,48 @@ final class SpawnArea {
                 npc.setData(NPC.DataVar.AGEABLE_BABY, true);
             }
         }
-        npc.setJob(NPC.Job.WANDER);
+        npc.setJob(NPC.Job.WALK_PATH);
+        npc.setMovementSpeed(2.0 + random.nextDouble() * 2.0);
         if (npc.isBlockedAt(location)) return null;
         if (npc.collidesWithOther()) return null;
         npc.setUniqueName(name);
         npc.setChatDisplayName(section.getString("DisplayName"));
         npc.setConversationDelegate(new SimpleConversationDelegate(section.getConfigurationSection("Conversation")));
         npc.setDelegate(new NPC.Delegate() {
+                boolean pathing = false;
                 @Override public void onTick(NPC n) { }
                 @Override public boolean canMoveIn(NPC n, Block b) {
+                    if (npc.getJob() == NPC.Job.WALK_PATH) return true;
                     if (blocks.contains(new Vec(b.getX(), b.getY() - 1, b.getZ()))) return true;
                     if (blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()))) return true;
                     if (b.isEmpty() && blocks.contains(new Vec(b.getX(), b.getY() - 2, b.getZ()))) return true;
                     return false;
                 }
                 @Override public boolean canMoveOn(NPC n, Block b) {
+                    if (npc.getJob() == NPC.Job.WALK_PATH) return true;
                     if (blocks.contains(new Vec(b.getX(), b.getY(), b.getZ()))) return true;
                     if (b.isEmpty() && blocks.contains(new Vec(b.getX(), b.getY() - 1, b.getZ()))) return true;
                     return false;
+                }
+                @Override public void didFinishPath(NPC npc) {
+                    if (pathing) return;
+                    npc.getPath().clear();
+                    final Vec goal = new ArrayList<>(blocks).get(random.nextInt(blocks.size()));
+                    Vec s = new Vec(npc.getLocation().getBlockX(), npc.getLocation().getBlockY(), npc.getLocation().getBlockZ());
+                    if (!blocks.contains(s)) s = Vec.v(s.x, s.y - 1, s.z);
+                    if (!blocks.contains(s)) return;
+                    final Vec start = s;
+                    pathing = true;
+                    Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                            findPath(start, goal, (newPath) -> {
+                                    pathing = false;
+                                    if (newPath != null) {
+                                        for (Vec vec: newPath) {
+                                            npc.getPath().add(new NPC.Vec3i(vec.x, vec.y, vec.z));
+                                        }
+                                    }
+                                });
+                        });
                 }
             });
         if (plugin.enableNPC(npc)) {
@@ -138,6 +168,65 @@ final class SpawnArea {
             return npc;
         } else {
             return null;
+        }
+    }
+
+    void findPath(Vec start, Vec goal, Consumer<List<Vec>> callback) {
+        World bw = Bukkit.getWorld(world);
+        if (bw == null) return;
+        Map<Vec, Vec> path = new HashMap<>();
+        List<Vec> todo = new ArrayList<>();
+        Set<Vec> done = new HashSet<>();
+        Map<Vec, Integer> dist = new HashMap<>();
+        dist.put(goal, 0);
+        todo.add(goal);
+        boolean goalReached = false;
+        int rcount = 0;
+        while (!todo.isEmpty()) {
+            if (rcount++ > 99999) break;
+            Vec cur = todo.remove(0);
+            if (done.contains(cur)) continue;
+            done.add(cur);
+            int curdist = dist.get(cur);
+            NBORS:
+            for (int dz = -1; dz <= 1; dz += 1) {
+                for (int dx = -1; dx <= 1; dx += 1) {
+                    for (int dy = -1; dy <= 1; dy += 1) {
+                        Vec nbor = Vec.v(cur.x + dx, cur.y + dy, cur.z + dz);
+                        Integer nbordist = dist.get(nbor);
+                        if (blocks.contains(nbor)) {
+                            if (dz != 0 && dx != 0) {
+                                if (!blocks.contains(Vec.v(cur.x, cur.y + dy, cur.z + dz))
+                                    || !blocks.contains(Vec.v(cur.x + dx, cur.y + dy, cur.z))) {
+                                    continue;
+                                }
+                            }
+                            if (!done.contains(nbor) && (nbordist == null || nbordist > curdist)) {
+                                todo.add(nbor);
+                                path.put(nbor, cur);
+                                dist.put(nbor, curdist + (dx != 0 && dz != 0 ? 18 : 10));
+                                if (nbor.equals(start)) {
+                                    goalReached = true;
+                                    break NBORS;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        if (goalReached) {
+            List<Vec> newPath = new ArrayList<>();
+            Vec now = start;
+            while (!now.equals(goal)) {
+                newPath.add(now);
+                now = path.get(now);
+            }
+            newPath.add(goal);
+            Bukkit.getScheduler().runTask(plugin, () -> callback.accept(newPath));
+        } else {
+            Bukkit.getScheduler().runTask(plugin, () -> callback.accept(null));
         }
     }
 }

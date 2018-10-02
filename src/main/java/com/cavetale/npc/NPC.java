@@ -115,13 +115,14 @@ public final class NPC {
     private long lastInteract;
     @Setter private boolean removeWhenUnwatched = true;
     @Setter private boolean removeWhenChunkUnloaded = true;
+    @Setter private boolean collidable = false;
     // Job
     @Setter private Job job;
     @Setter private Delegate delegate = (n) -> { };
     // Task
     private Task task;
     private int turn, turnTotal; // Countdown for current task duration
-    private double movementSpeed = 3.0; // Blocks per second
+    @Setter private double movementSpeed = 3.0; // Blocks per second
     private double direction;
     // Task.FOLLOW or Job.SPEECH_BUBBLE
     @Setter private LivingEntity followEntity;
@@ -814,6 +815,7 @@ public final class NPC {
             } else if (location.getYaw() < 0.0f) {
                 location.setYaw(location.getYaw() + 360.0f);
             }
+            if (debug) System.out.println("Did Turn");
         }
         boolean didMoveHead = headYaw != lastHeadYaw;
         double distance = lastLocation.distanceSquared(location);
@@ -1131,12 +1133,34 @@ public final class NPC {
             }
             if (followOffset != null) location = location.add(followOffset);
             break;
-        case WALK_PATH:
-            if (pathIndex >= path.size()) {
-                delegate.didFinishPath(this);
-                if (pathIndex >= path.size()) return;
+        case WALK_PATH: {
+            if (task == Task.CONVERSATION) {
+                performTask();
+            } else {
+                if (pathIndex >= path.size()) {
+                    delegate.didFinishPath(this);
+                    pathIndex = 0;
+                    if (pathIndex >= path.size()) return;
+                }
+                org.bukkit.block.Block currentBlock = location.getBlock();
+                Vec3i targetVec = path.get(pathIndex);
+                org.bukkit.block.Block targetBlock = currentBlock.getWorld().getBlockAt(targetVec.x, targetVec.y, targetVec.z);
+                if (!fightGravity() && !fall()) {
+                    Vector dir = targetBlock.getLocation().add(0.5, 0.0, 0.5).toVector()
+                        .subtract(location.toVector())
+                        .setY(0.0).normalize();
+                    location.setDirection(dir);
+                    headYaw = location.getYaw();
+                    forceTeleport = true;
+                    walkForward();
+                }
+                if (currentBlock.equals(targetBlock)
+                    || currentBlock.getRelative(0, -1, 0).equals(targetBlock)) {
+                    pathIndex += 1;
+                }
             }
             break;
+        }
         default:
             throw new IllegalStateException("Unhandled Job: " + job);
         }
@@ -1380,6 +1404,7 @@ public final class NPC {
                 if (debug) System.out.println("canWalkFromTo D " + x + "," + z);
             }
         }
+        if (debug) System.out.println("canWalkFromTo E true");
         return true;
     }
 
@@ -1397,6 +1422,7 @@ public final class NPC {
     }
 
     public boolean collidesWithOtherAt(Location at) {
+        if (!collidable) return false;
         List<Chunk> chunks = new ArrayList<>();
         Chunk mainChunk = at.getChunk();
         chunks.add(mainChunk);

@@ -446,6 +446,47 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
+        case "path":
+            if (args.length == 2) {
+                int id = Integer.parseInt(args[1]);
+                NPC npc = null;
+                for (NPC n: npcs) {
+                    if (n.getId() == id) {
+                        npc = n;
+                        break;
+                    }
+                }
+                if (npc == null) {
+                    player.sendMessage("Not found: #" + id);
+                    return true;
+                }
+                for (NPC.Vec3i hist: npc.getPath()) {
+                    Block block = player.getWorld().getBlockAt(hist.x, hist.y, hist.z);
+                    player.getWorld().spawnParticle(Particle.END_ROD, block.getLocation().add(0.5, 1.5, 0.5), 1, 0, 0, 0, 0);
+                }
+                player.sendMessage("Showing movement path of NPC #" + id);
+                return true;
+            }
+            break;
+        case "tp":
+            if (args.length == 2) {
+                int id = Integer.parseInt(args[1]);
+                NPC npc = null;
+                for (NPC n: npcs) {
+                    if (n.getId() == id) {
+                        npc = n;
+                        break;
+                    }
+                }
+                if (npc == null) {
+                    player.sendMessage("Not found: #" + id);
+                    return true;
+                }
+                player.teleport(npc.getLocation());
+                player.sendMessage("Teleported to NPC #" + id);
+                return true;
+            }
+            break;
         case "debug":
             if (args.length == 2) {
                 int id = Integer.parseInt(args[1]);
@@ -470,10 +511,10 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
-        case "areaspawn":
+        case "spawnrandomvillager":
             if (args.length == 3) {
                 SpawnArea spawnArea = spawnAreas.get(args[1]);
-                spawnArea.spawnNPC(args[2], player.getLocation());
+                spawnArea.spawnRandomVillager(args[2], player.getLocation());
             }
             break;
         case "reload":

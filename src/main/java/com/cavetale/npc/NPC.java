@@ -774,7 +774,7 @@ public final class NPC {
             valid = false;
             return;
         }
-        if (!location.getChunk().isLoaded()) {
+        if (!location.getWorld().isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
             if (removeWhenChunkUnloaded) valid = false;
             return;
         }

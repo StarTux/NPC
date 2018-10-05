@@ -236,7 +236,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 location.setPitch(0.0f);
                 switch (argIter.next()) {
                 case "player":
-                    npc = new NPC(this, NPC.Type.PLAYER, location, argIter.next(), null);
+                    npc = new NPC(this, NPC.Type.PLAYER, location, argIter.next(), argIter.hasNext() ? namedSkins.get(argIter.next()) : null);
                     break;
                 case "mob":
                     npc = new NPC(this, NPC.Type.MOB, location, EntityType.valueOf(argIter.next().toUpperCase()));

@@ -68,20 +68,26 @@ final class SpawnArea {
     }
 
     void onTick() {
-        World bWorld = Bukkit.getWorld(world);
-        if (bWorld == null) return;
-        List<Player> players = bWorld.getPlayers();
-        if (players.isEmpty()) return;
         for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
             if (!iter.next().isValid()) iter.remove();
         }
         if (npcs.size() >= amount) return;
+        World bWorld = Bukkit.getWorld(world);
+        if (bWorld == null) return;
+        List<Player> players = bWorld.getPlayers();
+        if (players.isEmpty()) return;
         // Pick a random block
         if (blocks.isEmpty()) return;
         Vec spawnVec = new ArrayList<>(blocks).get(random.nextInt(blocks.size()));
+        if (!bWorld.isChunkLoaded(spawnVec.x >> 4, spawnVec.z >> 4)) return;
+        for (Player player: players) {
+            Block pb = player.getLocation().getBlock();
+            if (Math.abs(pb.getX() - spawnVec.x) < 32
+                || Math.abs(pb.getZ() - spawnVec.z) < 32) {
+                return;
+            }
+        }
         Block spawnBlock = bWorld.getBlockAt(spawnVec.x, spawnVec.y, spawnVec.z);
-        Chunk spawnChunk = spawnBlock.getChunk();
-        if (!spawnBlock.getWorld().isChunkLoaded(spawnChunk.getX(), spawnChunk.getZ())) return;
         Location location = spawnBlock.getLocation().add(0.5, 1.0, 0.5);
         ConfigurationSection section = config.getConfigurationSection("RandomVillagers");
         List<String> npckeys = new ArrayList<>(section.getKeys(false));
@@ -101,16 +107,13 @@ final class SpawnArea {
         ConfigurationSection section = config.getConfigurationSection("RandomVillagers." + name);
         if (section == null) return null;
         NPC npc;
-        if (random.nextInt(3) > 0) {
-            List<PlayerSkin> skins = new ArrayList<>(plugin.getNamedSkins().values());
-            PlayerSkin playerSkin = skins.get(random.nextInt(skins.size()));
-            StringBuilder sb = new StringBuilder();
-            sb.append(ChatColor.RESET.toString());
-            sb.append(ChatColor.RESET.toString());
-            for (int i = 0; i < 6; i += 1) {
-                sb.append(ChatColor.values()[random.nextInt(ChatColor.values().length)]);
-            }
-            npc = new NPC(plugin, NPC.Type.PLAYER, location, sb.toString(), playerSkin);
+        if (random.nextInt(5) > 0) {
+            List<String> skinNames = new ArrayList<>(plugin.getNamedSkins().keySet());
+            String skinName = skinNames.get(random.nextInt(skinNames.size()));
+            PlayerSkin playerSkin = plugin.getNamedSkins().get(skinName);
+            String playerName = skinName;
+            if (playerName.length() > 16) playerName = playerName.substring(0, 16);
+            npc = new NPC(plugin, NPC.Type.PLAYER, location, playerName, playerSkin);
         } else {
             npc = new NPC(plugin, NPC.Type.MOB, location, EntityType.VILLAGER);
             npc.setData(NPC.DataVar.VILLAGER_PROFESSION, random.nextInt(6));

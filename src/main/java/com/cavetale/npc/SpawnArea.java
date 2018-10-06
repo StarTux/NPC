@@ -186,7 +186,7 @@ final class SpawnArea {
         boolean goalReached = false;
         int rcount = 0;
         while (!todo.isEmpty()) {
-            if (rcount++ > 99999) break;
+            if (rcount++ > 9999) break;
             Vec cur = todo.remove(0);
             if (done.contains(cur)) continue;
             done.add(cur);

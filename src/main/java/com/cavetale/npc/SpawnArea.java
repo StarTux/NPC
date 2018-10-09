@@ -34,12 +34,17 @@ final class SpawnArea {
     private final List<NPC> npcs = new ArrayList<>();
     private final Random random = new Random(System.nanoTime());
     private YamlConfiguration config;
+    private static final int VIEW_DISTANCE = 80;
 
     @Value
     static class Vec {
         public final int x, y, z;
         static Vec v(int x, int y, int z) {
             return new Vec(x, y, z);
+        }
+        @Override
+        public String toString() {
+            return String.format("(%d,%d,%d)", x, y, z);
         }
     }
 
@@ -82,10 +87,10 @@ final class SpawnArea {
         if (!bWorld.isChunkLoaded(spawnVec.x >> 4, spawnVec.z >> 4)) return;
         for (Player player: players) {
             Block pb = player.getLocation().getBlock();
-            if (Math.abs(pb.getX() - spawnVec.x) < 32
-                || Math.abs(pb.getZ() - spawnVec.z) < 32) {
-                return;
-            }
+            int dx = Math.abs(pb.getX() - spawnVec.x);
+            int dz = Math.abs(pb.getZ() - spawnVec.z);
+            if (dx < 32 || dx > VIEW_DISTANCE) return;
+            if (dz < 32 || dz > VIEW_DISTANCE) return;
         }
         Block spawnBlock = bWorld.getBlockAt(spawnVec.x, spawnVec.y, spawnVec.z);
         Location location = spawnBlock.getLocation().add(0.5, 1.0, 0.5);
@@ -124,13 +129,13 @@ final class SpawnArea {
         }
         npc.setJob(NPC.Job.WALK_PATH);
         npc.setMovementSpeed(2.0 + random.nextDouble() * 2.0);
+        npc.setViewDistance((double)VIEW_DISTANCE);
         if (npc.isBlockedAt(location)) return null;
         if (npc.collidesWithOther()) return null;
         npc.setUniqueName(name);
         npc.setChatDisplayName(section.getString("DisplayName"));
         npc.setConversationDelegate(new SimpleConversationDelegate(section.getConfigurationSection("Conversation")));
         npc.setDelegate(new NPC.Delegate() {
-                boolean pathing = false;
                 @Override public void onTick(NPC n) { }
                 @Override public boolean canMoveIn(NPC n, Block b) {
                     if (npc.getJob() == NPC.Job.WALK_PATH) return true;
@@ -146,24 +151,8 @@ final class SpawnArea {
                     return false;
                 }
                 @Override public void didFinishPath(NPC npc) {
-                    if (pathing) return;
-                    npc.getPath().clear();
-                    final Vec goal = new ArrayList<>(blocks).get(random.nextInt(blocks.size()));
-                    Vec s = new Vec(npc.getLocation().getBlockX(), npc.getLocation().getBlockY(), npc.getLocation().getBlockZ());
-                    if (!blocks.contains(s)) s = Vec.v(s.x, s.y - 1, s.z);
-                    if (!blocks.contains(s)) return;
-                    final Vec start = s;
-                    pathing = true;
-                    Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                            findPath(start, goal, (newPath) -> {
-                                    pathing = false;
-                                    if (newPath != null) {
-                                        for (Vec vec: newPath) {
-                                            npc.getPath().add(new NPC.Vec3i(vec.x, vec.y, vec.z));
-                                        }
-                                    }
-                                });
-                        });
+                    npc.setJob(NPC.Job.DANCE);
+                    findPath(npc);
                 }
             });
         if (plugin.enableNPC(npc)) {
@@ -174,7 +163,31 @@ final class SpawnArea {
         }
     }
 
-    void findPath(Vec start, Vec goal, Consumer<List<Vec>> callback) {
+    private void findPath(NPC npc) {
+        npc.getPath().clear();
+        Vec s = new Vec(npc.getLocation().getBlockX(), npc.getLocation().getBlockY(), npc.getLocation().getBlockZ());
+        if (!blocks.contains(s)) s = Vec.v(s.x, s.y - 1, s.z);
+        if (!blocks.contains(s)) {
+            npc.setValid(false);
+            return;
+        }
+        final Vec goal = new ArrayList<>(blocks).get(random.nextInt(blocks.size()));
+        final Vec start = s;
+        plugin.getAsyncTasks().add(() -> {
+                findPathAsync(npc, start, goal, (newPath) -> {
+                        if (newPath != null) {
+                            for (Vec vec: newPath) {
+                                npc.getPath().add(new NPC.Vec3i(vec.x, vec.y, vec.z));
+                                npc.setJob(NPC.Job.WALK_PATH);
+                            }
+                        } else {
+                            findPath(npc);
+                        }
+                    });
+            });
+    }
+
+    void findPathAsync(NPC npc, Vec start, Vec goal, Consumer<List<Vec>> callback) {
         World bw = Bukkit.getWorld(world);
         if (bw == null) return;
         Map<Vec, Vec> path = new HashMap<>();
@@ -185,8 +198,8 @@ final class SpawnArea {
         todo.add(goal);
         boolean goalReached = false;
         int rcount = 0;
-        while (!todo.isEmpty()) {
-            if (rcount++ > 99999) break;
+        while (!todo.isEmpty() && npc.isValid()) {
+            if (rcount++ > 9999) break;
             Vec cur = todo.remove(0);
             if (done.contains(cur)) continue;
             done.add(cur);
@@ -219,6 +232,8 @@ final class SpawnArea {
                 }
             }
         }
+        if (!plugin.isEnabled()) return;
+        if (!npc.isValid()) return;
         if (goalReached) {
             List<Vec> newPath = new ArrayList<>();
             Vec now = start;

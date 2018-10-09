@@ -4,6 +4,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -139,7 +140,6 @@ public final class NPC {
     @Setter private String chatDisplayName;
     @Setter private ChatColor chatColor;
     @Setter private int chatSpeed = 20;
-    private final List<Vec3i> history = new ArrayList<>();
     private final List<Vec3i> path = new ArrayList<>();
     private int pathIndex;
     @Setter private boolean debug;
@@ -650,12 +650,12 @@ public final class NPC {
      * This replaces nms.DataWatcher.
      */
     public final class EntityData implements Cloneable {
-        private final Map<Integer, DataValue> data = new HashMap<>();
+        private final Map<DataVar, DataValue> data = new EnumMap<>(DataVar.class);
 
         @Override
         public EntityData clone() {
             EntityData result = new EntityData();
-            for (Map.Entry<Integer, DataValue> entry: data.entrySet()) {
+            for (Map.Entry<DataVar, DataValue> entry: data.entrySet()) {
                 result.data.put(entry.getKey(), entry.getValue());
             }
             return result;
@@ -670,21 +670,21 @@ public final class NPC {
          * native entries
          */
         public void overwriteWith(EntityData other) {
-            for (Map.Entry<Integer, DataValue> entry: other.data.entrySet()) {
+            for (Map.Entry<DataVar, DataValue> entry: other.data.entrySet()) {
                 data.put(entry.getKey(), entry.getValue());
             }
         }
 
         public void set(DataVar variable, Object value) {
-            data.put(variable.index, new DataValue(variable, value));
+            data.put(variable, new DataValue(variable, value));
         }
 
         public void unset(DataVar variable) {
-            data.remove(variable.index);
+            data.remove(variable);
         }
 
         public void reset(DataVar variable) {
-            data.put(variable.index, new DataValue(variable, variable.defaultValue));
+            data.put(variable, new DataValue(variable, variable.defaultValue));
         }
 
         public void reset() {
@@ -692,11 +692,11 @@ public final class NPC {
         }
 
         public boolean isSet(DataVar variable) {
-            return data.containsKey(variable.index);
+            return data.containsKey(variable);
         }
 
         public Object get(DataVar variable) {
-            DataValue value = data.get(variable.index);
+            DataValue value = data.get(variable);
             if (value == null) return variable.defaultValue;
             return value.value;
         }
@@ -786,14 +786,6 @@ public final class NPC {
      * players are updated.
      */
     public void updateMovement() {
-        if (history.isEmpty()) {
-            history.add(new Vec3i(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
-        } else {
-            Vec3i hist = history.get(history.size() - 1);
-            if (hist.x != location.getBlockX() || hist.y != location.getBlockY() || hist.z != location.getBlockZ()) {
-                history.add(new Vec3i(location.getBlockX(), location.getBlockY(), location.getBlockZ()));
-            }
-        }
         boolean didMove =
             location.getX() != lastLocation.getX()
             || location.getY() != lastLocation.getY()
@@ -815,7 +807,6 @@ public final class NPC {
             } else if (location.getYaw() < 0.0f) {
                 location.setYaw(location.getYaw() + 360.0f);
             }
-            if (debug) System.out.println("Did Turn");
         }
         boolean didMoveHead = headYaw != lastHeadYaw;
         double distance = lastLocation.distanceSquared(location);
@@ -1044,6 +1035,21 @@ public final class NPC {
     }
 
     // -- Public simulation methods for moving around the world.  Jobs and tasks included.
+
+    public void setJob(Job newJob) {
+        if (job != null) {
+            switch (job) {
+            case DANCE:
+                entityData.set(DataVar.ENTITY_FLAGS, (byte)0);
+                updateData(0L);
+                entityData.unset(DataVar.ENTITY_FLAGS);
+                break;
+            default: break;
+            }
+        }
+        this.job = newJob;
+        turn = 0;
+    }
 
     public void performJob() {
         switch (job) {
@@ -1382,12 +1388,9 @@ public final class NPC {
     }
 
     boolean canWalkFromTo(Location from, Location to) {
-        if (debug) System.out.println("canWalkFromTo ENTER");
         if (from.getBlockX() == to.getBlockX() && from.getBlockY() == to.getBlockY() && from.getBlockZ() == to.getBlockZ()) return true;
-        if (debug) System.out.println("canWalkFromTo B");
         org.bukkit.block.Block fromBlock = from.getBlock();
         if (!delegate.canMoveIn(this, fromBlock) || !delegate.canMoveOn(this, fromBlock.getRelative(0, -1, 0))) return true;
-        if (debug) System.out.println("canWalkFromTo C");
         double width2 = (double)entity.width * 0.5;
         Location a = to.clone().add(-width2, 0.0, -width2);
         Location b = to.clone().add(width2, 0.0, width2);
@@ -1401,10 +1404,8 @@ public final class NPC {
                 org.bukkit.block.Block block = to.getWorld().getBlockAt(x, y, z);
                 if (!delegate.canMoveIn(this, block)) return false;
                 if (!delegate.canMoveOn(this, block.getRelative(0, -1, 0))) return false;
-                if (debug) System.out.println("canWalkFromTo D " + x + "," + z);
             }
         }
-        if (debug) System.out.println("canWalkFromTo E true");
         return true;
     }
 
@@ -1692,6 +1693,8 @@ public final class NPC {
         DummyDataWatcher dummy = new DummyDataWatcher(list);
         return new PacketPlayOutEntityMetadata(id, dummy, false);
     }
+
+    // --- Private watcher management
 
     private void startWatch(Watcher watcher) {
         PlayerConnection connection = ((CraftPlayer)watcher.player).getHandle().playerConnection;

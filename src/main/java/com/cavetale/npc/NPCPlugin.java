@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import lombok.Getter;
 import net.md_5.bungee.api.ChatColor;
@@ -90,7 +92,10 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
     private final Map<String, PlayerSkin> namedSkins = new HashMap<>();
     private final Map<String, PlayerSkin> nameSkinCache = new HashMap<>();
     private final Map<String, PlayerSkin> uuidSkinCache = new HashMap<>();
+    private final Map<String, NPCSpawner> spawners = new HashMap<>();
+    private YamlConfiguration spawnersConfig;
     private long ticksLived;
+    private LinkedBlockingQueue<Runnable> asyncTasks = new LinkedBlockingQueue<>();
 
     @Override
     public void onEnable() {
@@ -135,7 +140,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         PacketListenerAPI.addPacketHandler(packetHandler);
         loadSpawnAreas();
         loadPlayerSkins();
+        loadSpawners();
         getCommand("npcanswer").setExecutor((cs, c, a, args) -> onNPCAnswer(cs, args));
+        getServer().getScheduler().runTaskAsynchronously(this, this::asyncWorker);
     }
 
     void loadSpawnAreas() {
@@ -158,6 +165,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
     }
 
     void loadPlayerSkins() {
+        namedSkins.clear();
+        uuidSkinCache.clear();
+        nameSkinCache.clear();
         for (int i = 0; i < 2; i += 1) {
             String fn;
             switch (i) {
@@ -190,6 +200,38 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                     nameSkinCache.put(playerSkin.name, playerSkin);
                 }
             }
+        }
+    }
+
+    void loadSpawners() {
+        for (NPCSpawner spawner: spawners.values()) {
+            spawner.setValid(false);
+            if (spawner.getNpc() != null) spawner.getNpc().setValid(false);
+        }
+        spawners.clear();
+        YamlConfiguration cfg = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "spawners.yml"));
+        spawnersConfig = cfg;
+        for (String key: cfg.getKeys(false)) {
+            ConfigurationSection section = cfg.getConfigurationSection(key);
+            NPCSpawner spawner = new NPCSpawner(this, key);
+            try {
+                spawner.setConfig(section);
+                spawner.loadConfig();
+            } catch (Exception e) {
+                getLogger().warning("Error loading spawner.yml/" + key + ":");
+                e.printStackTrace();
+                continue;
+            }
+            spawners.put(key, spawner);
+        }
+    }
+
+    void saveSpawners() {
+        if (spawnersConfig == null) return;
+        try {
+            spawnersConfig.save(new File(getDataFolder(), "spawners.yml"));
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
         }
     }
 
@@ -281,6 +323,55 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
+        case "create": {
+            if (args.length != 3) {
+                player.sendMessage("/npc create <name> <type>");
+                return true;
+            }
+            String name = args[1];
+            NPC.Type type;
+            String arg = args[2];
+            try {
+                type = NPC.Type.valueOf(arg.toUpperCase());
+            } catch (IllegalArgumentException iae) {
+                sender.sendMessage("Invalid type: " + arg);
+                return true;
+            }
+            if (spawners.containsKey(name)) {
+                sender.sendMessage(name + " already exists.");
+                return true;
+            }
+            NPCSpawner spawner = new NPCSpawner(this, name);
+            ConfigurationSection cfg = spawnersConfig.createSection(name);
+            spawner.setConfig(cfg);
+            spawner.setLocation(player.getLocation());
+            spawner.setType(type);
+            spawners.put(name, spawner);
+            spawner.setValid(true);
+            saveSpawners();
+            break;
+        }
+        case "modify": { // /npc modify name key value
+            if (args.length != 4) {
+                sender.sendMessage("/npc modify <name> <key> <value>");
+                return true;
+            }
+            String name = args[1];
+            String key = args[2];
+            String value = args[3];
+            NPCSpawner spawner = spawners.get(name);
+            if (spawner == null) {
+                sender.sendMessage("Spawner not found: " + name);
+                return true;
+            }
+            spawner.getConfig().set(key, value);
+            spawner.loadConfig();
+            NPC npc = spawner.getNpc();
+            if (npc != null) npc.setValid(false);
+            saveSpawners();
+            sender.sendMessage("Set " + key + " to " + value + " for " + name + "!");
+            return true;
+        }
         case "count":
             if (args.length == 1) {
                 sender.sendMessage("Count: " + npcs.size());
@@ -289,16 +380,11 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
             break;
         case "list":
             if (args.length == 1) {
-                int i = 0;
-                for (NPC npc: npcs) {
-                    i += 1;
-                    Location location  = npc.getLocation();
-                    sender.sendMessage(i + ") " + location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ());
+                if (player == null) {
+                    sender.sendMessage("Player expected");
+                    return true;
                 }
-                sender.sendMessage("Total: " + npcs.size());
-                return true;
-            } else if (args.length == 2) {
-                int radius = Integer.parseInt(args[1]);
+                final int radius = 16;
                 Location playerLocation = player.getLocation();
                 int x = playerLocation.getBlockX();
                 int y = playerLocation.getBlockY();
@@ -320,6 +406,32 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                         bubble.getExclusive().add(player.getUniqueId());
                     }
                     index += 1;
+                }
+                return true;
+            }
+            break;
+        case "info":
+            if (args.length == 2) {
+                int npcId;
+                String arg = args[1];
+                try {
+                    npcId = Integer.parseInt(arg);
+                } catch (NumberFormatException nfe) {
+                    sender.sendMessage("Invalid id: " + arg);
+                    return true;
+                }
+                NPC npc = findNPCWithId(npcId);
+                if (npc == null) {
+                    sender.sendMessage("NPC with ID not found: " + npcId);
+                    return true;
+                }
+                sender.sendMessage("NPC #" + npc.getId() + "name=" + npc.getName() + " type=" + npc.getType());
+                PlayerSkin skin = npc.getPlayerSkin();
+                if (skin != null) sender.sendMessage("Skin=" + skin);
+                for (NPC.DataVar dv: NPC.DataVar.values()) {
+                    if (npc.getEntityData().isSet(dv)) {
+                        sender.sendMessage(dv + "=" + npc.getEntityData().get(dv));
+                    }
                 }
                 return true;
             }
@@ -424,28 +536,6 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 return true;
             }
             break;
-        case "history":
-            if (args.length == 2) {
-                int id = Integer.parseInt(args[1]);
-                NPC npc = null;
-                for (NPC n: npcs) {
-                    if (n.getId() == id) {
-                        npc = n;
-                        break;
-                    }
-                }
-                if (npc == null) {
-                    player.sendMessage("Not found: #" + id);
-                    return true;
-                }
-                for (NPC.Vec3i hist: npc.getHistory()) {
-                    Block block = player.getWorld().getBlockAt(hist.x, hist.y, hist.z);
-                    player.getWorld().spawnParticle(Particle.END_ROD, block.getLocation().add(0.5, 0.5, 0.5), 1, 0, 0, 0, 0);
-                }
-                player.sendMessage("Showing movement history of NPC #" + id);
-                return true;
-            }
-            break;
         case "path":
             if (args.length == 2) {
                 int id = Integer.parseInt(args[1]);
@@ -520,7 +610,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         case "reload":
             if (args.length == 1) {
                 loadSpawnAreas();
-                sender.sendMessage("Spawn areas reloaded.");
+                loadPlayerSkins();
+                loadSpawners();
+                sender.sendMessage("Spawn areas, player skins, spawners reloaded.");
                 return true;
             }
             break;
@@ -576,6 +668,14 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         return null;
     }
 
+    @Override
+    public NPC findNPCWithId(int id) {
+        for (NPC npc: npcs) {
+            if (npc.getId() == id) return npc;
+        }
+        return null;
+    }
+
     void onTick() {
         for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
             NPC npc = iter.next();
@@ -592,7 +692,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                     npc.disable();
                 } catch (Throwable t) {
                     try {
-                        System.err.println("Disabling NPC #" + npc.getId() + ": " + npc.getDescription());
+                        getLogger().warning("Disabling NPC #" + npc.getId() + ": " + npc.getDescription());
                     } catch (Throwable e) { }
                     t.printStackTrace();
                 }
@@ -620,12 +720,15 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         for (SpawnArea spawnArea: spawnAreas.values()) {
             spawnArea.onTick();
         }
+        for (NPCSpawner spawner: spawners.values()) {
+            spawner.tick();
+        }
         ticksLived += 1;
     }
 
     void getPlayerSkinAsync(String id, String name, Consumer<PlayerSkin> consumer) {
-        if (name == null) throw new NullPointerException("Player name cannot be null!");
         if (id == null) {
+            if (name == null) throw new NullPointerException("Player name cannot be null!");
             UUID uuid = GenericEvents.cachedPlayerUuid(name);
             if (uuid != null) id = uuid.toString().replace("-", "");
         }
@@ -635,7 +738,11 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         final String finalId = id;
         final String finalName = name;
         final PlayerSkin finalSkin = playerSkin;
-        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+        if (finalSkin != null) {
+            getServer().getScheduler().runTask(this, () -> consumer.accept(finalSkin));
+            return;
+        }
+        asyncTasks.add(() -> {
                 PlayerSkin useSkin = finalSkin;
                 if (useSkin == null) {
                     String useId;
@@ -741,5 +848,16 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         }
         in.close();
         return JSONValue.parse(sb.toString());
+    }
+
+    private void asyncWorker() {
+        while (isEnabled()) {
+            try {
+                Runnable task = asyncTasks.poll(1, TimeUnit.SECONDS);
+                if (task != null) task.run();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

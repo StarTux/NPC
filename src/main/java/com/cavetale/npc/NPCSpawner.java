@@ -97,7 +97,9 @@ public final class NPCSpawner {
     }
 
     boolean spawn() {
+        if (spawning) return false;
         World bw = Bukkit.getWorld(world);
+        if (bw.getPlayers().isEmpty()) return false;
         if (bw == null) return false;
         if (!bw.isChunkLoaded((int)Math.floor(x) >> 4, (int)Math.floor(z) >> 4)) return false;
         Location location = new Location(bw, x, y, z, yaw, pitch);

@@ -143,6 +143,10 @@ public final class NPC {
     private final List<Vec3i> path = new ArrayList<>();
     private int pathIndex;
     @Setter private boolean debug;
+    @Setter private double moveThreshold = 0.2;
+    @Setter private double movePitchThreshold = 1.0;
+    @Setter private double moveYawThreshold = 1.0;
+    @Setter private double moveHeadThreshold = 1.0;
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
 
@@ -767,6 +771,7 @@ public final class NPC {
     public void tick() {
         delegate.onTick(this);
         if (job != null) performJob();
+        updateChunkLocation();
         updateMovement();
         updateWatchers();
         ticksLived += 1;
@@ -787,15 +792,16 @@ public final class NPC {
      */
     public void updateMovement() {
         boolean didMove =
-            location.getX() != lastLocation.getX()
-            || location.getY() != lastLocation.getY()
-            || location.getZ() != lastLocation.getZ();
+            Math.abs(location.getX() - lastLocation.getX()) > moveThreshold
+            || Math.abs(location.getY() - lastLocation.getY()) > moveThreshold
+            || Math.abs(location.getZ() - lastLocation.getZ()) > moveThreshold;
+        if (didMove && debug) System.out.println("Move " + ticksLived);
         boolean didTurn;
         switch (type) {
         case PLAYER: case MOB:
             didTurn = forceLookUpdate
-                || location.getPitch() != lastLocation.getPitch()
-                || location.getYaw() != lastLocation.getYaw();
+                || Math.abs(location.getPitch() - lastLocation.getPitch()) > movePitchThreshold
+                || Math.abs(location.getYaw() - lastLocation.getYaw()) > moveYawThreshold;
             forceLookUpdate = false;
             break;
         case BLOCK: case ITEM: case MARKER: default:
@@ -808,21 +814,22 @@ public final class NPC {
                 location.setYaw(location.getYaw() + 360.0f);
             }
         }
-        boolean didMoveHead = headYaw != lastHeadYaw;
+        boolean didMoveHead = Math.abs(headYaw - lastHeadYaw) > moveHeadThreshold;
         double distance = lastLocation.distanceSquared(location);
         boolean doTeleport = forceTeleport
-            || ticksLived == 0
+            || forceTeleport
             || didMove && distance >= 64
             || locationError >= 0.125
             || locationMoved > 1024.0
             || !didMove && locationMoved > 16.0;
+        if (debug && doTeleport) System.out.println("Teleport " + ticksLived);
         if (doTeleport) {
-            forceTeleport = false;
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
             packets.add(new PacketPlayOutEntityTeleport(entity));
             trackLocation = location.clone();
             locationError = 0.0;
             locationMoved = 0.0;
+            lastLocation = location.clone();
         } else if (didMove && didTurn) {
             long dx = (long)((location.getX() * 32.0 - lastLocation.getX() * 32.0) * 128.0);
             long dy = (long)((location.getY() * 32.0 - lastLocation.getY() * 32.0) * 128.0);
@@ -835,6 +842,7 @@ public final class NPC {
             entity.setPositionRotation(trackLocation.getX(), trackLocation.getY(), trackLocation.getZ(), location.getYaw(), location.getPitch());
             locationError = trackLocation.distanceSquared(location);
             locationMoved += Math.sqrt(distance);
+            lastLocation = location.clone();
         } else if (didMove) {
             long dx = (long)((location.getX() * 32.0 - lastLocation.getX() * 32.0) * 128.0);
             long dy = (long)((location.getY() * 32.0 - lastLocation.getY() * 32.0) * 128.0);
@@ -845,21 +853,28 @@ public final class NPC {
             entity.setPosition(trackLocation.getX(), trackLocation.getY(), trackLocation.getZ());
             locationError = trackLocation.distanceSquared(location);
             locationMoved += Math.sqrt(distance);
+            lastLocation.setX(location.getX());
+            lastLocation.setY(location.getY());
+            lastLocation.setZ(location.getZ());
         } else if (didTurn) {
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
             packets.add(new PacketPlayOutEntity.PacketPlayOutEntityLook(entity.getId(),
                                                                         (byte)((int)(location.getYaw() * 256.0f / 360.0f)),
                                                                         (byte)((int)(location.getPitch() * 256.0f / 360.0f)),
                                                                         onGround)); // onGround
+            lastLocation.setPitch(location.getPitch());
+            lastLocation.setYaw(location.getYaw());
         } else {
-            packets.add(new PacketPlayOutEntity(entity.getId()));
+            if ((ticksLived % 20L) == 0L) {
+                if (debug) System.out.println("NoMove " + ticksLived);
+                packets.add(new PacketPlayOutEntity(entity.getId()));
+            }
         }
-        if (headYaw != lastHeadYaw) {
+        if (forceTeleport || didMoveHead) {
             packets.add(new PacketPlayOutEntityHeadRotation(entity, (byte)((int)((headYaw % 360.0f) * 256.0f / 360.0f))));
             lastHeadYaw = headYaw;
         }
-        if (didMove) updateChunkLocation();
-        lastLocation = location.clone();
+        forceTeleport = false;
     }
 
     /**
@@ -968,6 +983,7 @@ public final class NPC {
         trackLocation = location.clone();
         headYaw = location.getYaw();
         lastHeadYaw = headYaw;
+        forceTeleport = true;
         updateChunkLocation();
         valid = true;
         delegate.onEnable(this);
@@ -1157,7 +1173,6 @@ public final class NPC {
                         .setY(0.0).normalize();
                     location.setDirection(dir);
                     headYaw = location.getYaw();
-                    forceTeleport = true;
                     walkForward();
                 }
                 if (currentBlock.equals(targetBlock)
@@ -1209,7 +1224,6 @@ public final class NPC {
             boolean didMoveVertical = fightGravity() || fall();
             location.setDirection(followEntity.getEyeLocation().subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
             headYaw = location.getYaw();
-            forceLookUpdate = true;
             break;
         case FOLLOW:
             if (followEntity == null) {
@@ -1234,7 +1248,6 @@ public final class NPC {
             if (entity instanceof EntityLiving) {
                 location.setDirection(followEye.subtract(((LivingEntity)entity.getBukkitEntity()).getEyeLocation()).toVector().normalize());
                 headYaw = location.getYaw();
-                forceLookUpdate = true;
             }
             if (!didMoveVertical && follow.distanceSquared(location) >= followDistanceSquared) walkForward();
             break;

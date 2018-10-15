@@ -352,24 +352,35 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
             break;
         }
         case "modify": { // /npc modify name key value
-            if (args.length != 4) {
+            if (args.length != 3 && args.length != 4) {
                 sender.sendMessage("/npc modify <name> <key> <value>");
                 return true;
             }
             String name = args[1];
-            String key = args[2];
-            String value = args[3];
             NPCSpawner spawner = spawners.get(name);
             if (spawner == null) {
                 sender.sendMessage("Spawner not found: " + name);
                 return true;
             }
-            spawner.getConfig().set(key, value);
-            spawner.loadConfig();
+            String key = args[2];
+            if (args.length == 3) {
+                switch (key) {
+                case "here":
+                    if (player != null) spawner.setLocation(player.getLocation());
+                    saveSpawners();
+                    sender.sendMessage("Location set to " + spawner.getLocation());
+                    break;
+                }
+            }
+            if (args.length == 4) {
+                String value = args[3];
+                spawner.getConfig().set(key, value);
+                spawner.loadConfig();
+                saveSpawners();
+                sender.sendMessage("Set " + key + " to " + value + " for " + name + "!");
+            }
             NPC npc = spawner.getNpc();
             if (npc != null) npc.setValid(false);
-            saveSpawners();
-            sender.sendMessage("Set " + key + " to " + value + " for " + name + "!");
             return true;
         }
         case "count":

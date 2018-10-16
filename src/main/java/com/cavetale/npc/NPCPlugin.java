@@ -731,8 +731,10 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         for (SpawnArea spawnArea: spawnAreas.values()) {
             spawnArea.onTick();
         }
-        for (NPCSpawner spawner: spawners.values()) {
-            spawner.tick();
+        if ((ticksLived % 20) == 0) {
+            for (NPCSpawner spawner: spawners.values()) {
+                spawner.tick();
+            }
         }
         ticksLived += 1;
     }

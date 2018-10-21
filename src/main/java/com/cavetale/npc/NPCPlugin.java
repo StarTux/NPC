@@ -698,7 +698,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                 }
             }
         }
-        for (Iterator<NPC> iter = new ArrayList<>(npcs).iterator(); iter.hasNext();) {
+        for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
             NPC npc = iter.next();
             if (!npc.isValid()) {
                 try {

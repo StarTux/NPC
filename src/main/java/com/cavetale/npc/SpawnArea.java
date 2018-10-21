@@ -85,13 +85,15 @@ final class SpawnArea {
         if (blocks.isEmpty()) return;
         Vec spawnVec = new ArrayList<>(blocks).get(random.nextInt(blocks.size()));
         if (!bWorld.isChunkLoaded(spawnVec.x >> 4, spawnVec.z >> 4)) return;
+        int inRange = 0;
         for (Player player: players) {
             Block pb = player.getLocation().getBlock();
             int dx = Math.abs(pb.getX() - spawnVec.x);
             int dz = Math.abs(pb.getZ() - spawnVec.z);
-            if (dx < 32 || dx > VIEW_DISTANCE) return;
-            if (dz < 32 || dz > VIEW_DISTANCE) return;
+            if (dx < 16 || dz < 16) return;
+            if (dx < VIEW_DISTANCE && dz < VIEW_DISTANCE) inRange += 1;
         }
+        if (inRange == 0) return;
         Block spawnBlock = bWorld.getBlockAt(spawnVec.x, spawnVec.y, spawnVec.z);
         Location location = spawnBlock.getLocation().add(0.5, 1.0, 0.5);
         ConfigurationSection section = config.getConfigurationSection("RandomVillagers");
@@ -151,7 +153,7 @@ final class SpawnArea {
                     return false;
                 }
                 @Override public void didFinishPath(NPC npc) {
-                    npc.setJob(NPC.Job.DANCE);
+                    npc.setJob(NPC.Job.IDLE);
                     findPath(npc);
                 }
             });
@@ -199,7 +201,7 @@ final class SpawnArea {
         boolean goalReached = false;
         int rcount = 0;
         while (!todo.isEmpty() && npc.isValid()) {
-            if (rcount++ > 9999) break;
+            if (rcount++ > 999) break;
             Vec cur = todo.remove(0);
             if (done.contains(cur)) continue;
             done.add(cur);

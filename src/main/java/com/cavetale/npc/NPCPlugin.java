@@ -408,7 +408,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                         result.add(npc);
                     }
                 }
-                sender.sendMessage("" + result.size() + " NPCs within radius " + radius);
+                sender.sendMessage("" + result.size() + "/" + npcs.size() + " NPCs within radius " + radius);
                 int index = 0;
                 for (NPC npc: result) {
                     sender.sendMessage("" + index + ") " + npc.getDescription());
@@ -688,8 +688,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
     }
 
     void onTick() {
-        for (Iterator<NPC> iter = npcs.iterator(); iter.hasNext();) {
-            NPC npc = iter.next();
+        for (NPC npc: new ArrayList<>(npcs)) {
             if (npc.isValid()) {
                 try {
                     npc.tick();
@@ -698,6 +697,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                     t.printStackTrace();
                 }
             }
+        }
+        for (Iterator<NPC> iter = new ArrayList<>(npcs).iterator(); iter.hasNext();) {
+            NPC npc = iter.next();
             if (!npc.isValid()) {
                 try {
                     npc.disable();

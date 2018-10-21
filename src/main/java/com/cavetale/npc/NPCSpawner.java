@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
+import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -89,6 +90,14 @@ public final class NPCSpawner {
         if (this.npc != null) this.npc.setValid(false);
         try {
             if (config.isSet("job")) newNPC.setJob(NPC.Job.valueOf(config.getString("job").toUpperCase()));
+            if (config.isSet("conversation")) newNPC.setConversationDelegate(new SimpleConversationDelegate(config.getConfigurationSection("conversation")));
+            if (config.isSet("chat_display_name")) newNPC.setChatDisplayName(config.getString("chat_display_name"));
+            if (config.isSet("announcements")) {
+                newNPC.setAnnouncements(config.getStringList("announcements"));
+                newNPC.setAnnouncementRandom(config.getBoolean("announcement_random"));
+                newNPC.setAnnouncementInterval(config.getInt("announcement_interval", 20));
+            }
+            if (config.isSet("chat_color")) newNPC.setChatColor(ChatColor.valueOf(config.getString("chat_color").toUpperCase()));
         } catch (Exception e) {
             return false;
         }

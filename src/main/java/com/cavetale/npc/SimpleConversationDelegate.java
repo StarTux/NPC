@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import net.md_5.bungee.api.ChatColor;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 
 @RequiredArgsConstructor
@@ -63,6 +64,17 @@ public final class SimpleConversationDelegate implements Conversation.Delegate {
                 } else if (o instanceof List) {
                     result = convo.say(npcIndex, (List<String>)o);
                 }
+            }
+        }
+        if (section.isList("commands")) {
+            for (String cmd: section.getStringList("commands")) {
+                convo.getPlayers().get(0).performCommand(cmd);
+            }
+        } else if (section.isList("console")) {
+            for (String cmd: section.getStringList("console")) {
+                cmd = cmd.replace("%player%", convo.getPlayers().get(0).getName());
+                cmd = cmd.replace("%uuid%", convo.getPlayers().get(0).getUniqueId().toString());
+                Bukkit.getServer().dispatchCommand(Bukkit.getServer().getConsoleSender(), cmd);
             }
         }
         String question = section.getString("question");

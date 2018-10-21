@@ -136,6 +136,11 @@ public final class NPC {
     @Setter private List<Object> speech;
     @Setter private Conversation.Delegate conversationDelegate;
     @Setter private String conversationState;
+    @Setter private List<String> announcements;
+    @Setter private int announcementIndex;
+    @Setter private boolean announcementRandom;
+    @Setter private int announcementInterval;
+    private int announcementCooldown = 0;
     private NPC speechBubble;
     @Setter private String chatDisplayName;
     @Setter private ChatColor chatColor;
@@ -417,7 +422,7 @@ public final class NPC {
     }
 
     public enum Job {
-        NONE, WANDER, WIGGLE, DANCE, SPEECH_BUBBLE, WALK_PATH;
+        NONE, WANDER, WIGGLE, DANCE, SPEECH_BUBBLE, WALK_PATH, IDLE;
     }
 
     public enum Task {
@@ -1068,6 +1073,15 @@ public final class NPC {
     }
 
     public void performJob() {
+        if (speechBubble != null && !speechBubble.valid) speechBubble = null;
+        if (task != Task.CONVERSATION && speechBubble == null && announcements != null && !announcements.isEmpty()) {
+            if (announcementCooldown > 0) {
+                announcementCooldown -= 1;
+            } else {
+                announce();
+                announcementCooldown = announcementInterval;
+            }
+        }
         switch (job) {
         case NONE: return;
         case WANDER:
@@ -1182,6 +1196,20 @@ public final class NPC {
             }
             break;
         }
+        case IDLE: {
+            if (task == Task.CONVERSATION) {
+                performTask();
+            } else {
+                task = Task.LOOK_AROUND;
+                if (turn <= 0) {
+                    turn = 50;
+                } else {
+                    turn -= 1;
+                }
+                performTask();
+            }
+            break;
+        }
         default:
             throw new IllegalStateException("Unhandled Job: " + job);
         }
@@ -1212,7 +1240,7 @@ public final class NPC {
             }
             break;
         case LOOK_AROUND:
-            if (!fightGravity() && !fall() && (turn % 16) == 0) {
+            if (!fightGravity() && !fall() && turn == 1) {
                 lookRandom();
             }
             break;
@@ -1423,8 +1451,8 @@ public final class NPC {
     }
 
     public void lookRandom() {
-        double yaw = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
-        double pitch = ThreadLocalRandom.current().nextDouble() * 120.0 - 60.0;
+        double yaw = ThreadLocalRandom.current().nextDouble() * 100.0 - 50.0;
+        double pitch = ThreadLocalRandom.current().nextDouble() * 100.0 - 50.0;
         headYaw = (double)location.getYaw() + yaw;
         location.setPitch((float)pitch);
     }
@@ -1433,6 +1461,21 @@ public final class NPC {
         Vector dir = lookAt.subtract(getEyeLocation()).toVector();
         location.setDirection(dir);
         headYaw = (double)location.getYaw();
+    }
+
+    public void announce() {
+        String lines = announcements.get(announcementIndex);
+        for (String line: lines.split("\n")) {
+            addSpeechBubble(line);
+        }
+        if (announcementRandom) {
+            announcementIndex = ThreadLocalRandom.current().nextInt(announcements.size());
+        } else {
+            announcementIndex += 1;
+            if (announcementIndex >= announcements.size()) {
+                announcementIndex = 0;
+            }
+        }
     }
 
     public boolean collidesWithOtherAt(Location at) {

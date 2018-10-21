@@ -97,6 +97,8 @@ public final class NPC {
     private boolean forceLookUpdate, forceTeleport;
     private double viewDistance = 80.0;
     private double viewDistanceSquared = 6400.0;
+    private double activationRange = 72.0;
+    private double activationRangeSquared = 5184.0;
     @Setter private boolean hideNameTag = true; // TODO setter which updates things
     @Setter private boolean onGround;
     // Identity
@@ -940,7 +942,7 @@ public final class NPC {
         // Find new players
         for (Player player: location.getWorld().getPlayers()) {
             if (!watcherIds.contains(player.getUniqueId())
-                && player.getLocation().distanceSquared(location) < viewDistanceSquared) {
+                && player.getLocation().distanceSquared(location) < activationRangeSquared) {
                 if (!exclusive.isEmpty() && !exclusive.contains(player.getUniqueId())) continue;
                 if (!delegate.onPlayerAdd(this, player)) continue;
                 Watcher watcher = new Watcher(player);
@@ -1522,6 +1524,11 @@ public final class NPC {
     public void setViewDistance(double viewDist) {
         viewDistance = viewDist;
         viewDistanceSquared = viewDist * viewDist;
+    }
+
+    public void setActivationRange(double ar) {
+        this.activationRange = ar;
+        this.activationRangeSquared = ar * ar;
     }
 
     public void setFollowDistance(double followDist) {

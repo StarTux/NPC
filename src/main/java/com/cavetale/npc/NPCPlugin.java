@@ -87,7 +87,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
     private final List<Conversation> conversations = new ArrayList<>();
     private Random random = new Random(System.nanoTime());
     private PacketHandler packetHandler;
-    private static NPCPlugin instance;
+    @Getter private static NPCPlugin instance;
     private final Map<String, SpawnArea> spawnAreas = new HashMap<>();
     private final Map<String, PlayerSkin> namedSkins = new HashMap<>();
     private final Map<String, PlayerSkin> nameSkinCache = new HashMap<>();

@@ -13,9 +13,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import lombok.Data;
 import lombok.Value;
-import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -35,6 +33,7 @@ final class SpawnArea {
     private final Random random = new Random(System.nanoTime());
     private YamlConfiguration config;
     private static final int VIEW_DISTANCE = 80;
+    private int villagerIndex = 0;
 
     @Value
     static class Vec {
@@ -118,7 +117,7 @@ final class SpawnArea {
             List<String> skinNames = new ArrayList<>(plugin.getNamedSkins().keySet());
             String skinName = skinNames.get(random.nextInt(skinNames.size()));
             PlayerSkin playerSkin = plugin.getNamedSkins().get(skinName);
-            String playerName = skinName;
+            String playerName = "%villager" + villagerIndex++;
             if (playerName.length() > 16) playerName = playerName.substring(0, 16);
             npc = new NPC(plugin, NPC.Type.PLAYER, location, playerName, playerSkin);
         } else {

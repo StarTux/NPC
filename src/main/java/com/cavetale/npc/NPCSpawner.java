@@ -1,15 +1,16 @@
 package com.cavetale.npc;
 
-import java.util.ArrayList;
-import java.util.List;
 import lombok.Getter;
 import lombok.Setter;
 import net.md_5.bungee.api.ChatColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.EntityType;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 
 @Getter
 public final class NPCSpawner {
@@ -98,6 +99,18 @@ public final class NPCSpawner {
                 newNPC.setAnnouncementInterval(config.getInt("announcement_interval", 20));
             }
             if (config.isSet("chat_color")) newNPC.setChatColor(ChatColor.valueOf(config.getString("chat_color").toUpperCase()));
+            if (config.isConfigurationSection("equipment")) {
+                ConfigurationSection section = config.getConfigurationSection("equipment");
+                for (EquipmentSlot slot: EquipmentSlot.values()) {
+                    String key = slot.name().toLowerCase().replace("_", "");
+                    Object o = section.get(key);
+                    if (o instanceof String) {
+                        newNPC.setEquipment(slot, new ItemStack(Material.valueOf(((String)o).toUpperCase())));
+                    } else if (o instanceof ItemStack) {
+                        newNPC.setEquipment(slot, (ItemStack)o);
+                    }
+                }
+            }
         } catch (Exception e) {
             return false;
         }
@@ -115,16 +128,16 @@ public final class NPCSpawner {
         switch (type) {
         case PLAYER:
             if (config.isSet("skin")) {
-                return enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, name, plugin.getNamedSkins().get(config.getString("skin"))));
+                return enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, this.name, plugin.getNamedSkins().get(config.getString("skin"))));
             } else if (config.isSet("skin_id") || config.isSet("skin_name")) {
                 spawning = true;
                 String id = config.getString("skin_id");
                 if (id != null && id.contains("-")) id = id.replace("-", "");
-                String name = config.getString("skin_name");
-                plugin.getPlayerSkinAsync(id, name, (skin) -> {
+                String skinName = config.getString("skin_name");
+                plugin.getPlayerSkinAsync(id, skinName, (skin) -> {
                         spawning = false;
                         if (!valid) return;
-                        enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, name, skin));
+                        enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, skinName, skin));
                     });
                 return true;
             } else {

@@ -100,8 +100,12 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
     @Override
     public void onEnable() {
         instance = this;
-        saveResource("skins.yml", false);
-        saveResource("spawnareas/spawn.yml", false);
+        try {
+            saveResource("skins.yml", false);
+            saveResource("spawnareas/spawn.yml", false);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         getServer().getScheduler().runTaskTimer(this, this::onTick, 1, 1);
         packetHandler = new PacketHandler() {
                 @Override
@@ -263,6 +267,7 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         }
         npcs.clear();
         PacketListenerAPI.removePacketHandler(packetHandler);
+        instance = null;
     }
 
     @Override

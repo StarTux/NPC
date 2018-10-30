@@ -38,6 +38,7 @@ import net.minecraft.server.v1_13_R2.EntityLiving;
 import net.minecraft.server.v1_13_R2.EntityPlayer;
 import net.minecraft.server.v1_13_R2.EntityTypes;
 import net.minecraft.server.v1_13_R2.EnumDirection;
+import net.minecraft.server.v1_13_R2.EnumItemSlot;
 import net.minecraft.server.v1_13_R2.IBlockData;
 import net.minecraft.server.v1_13_R2.IChatBaseComponent;
 import net.minecraft.server.v1_13_R2.ItemStack;
@@ -47,6 +48,7 @@ import net.minecraft.server.v1_13_R2.Packet;
 import net.minecraft.server.v1_13_R2.PacketPlayOutAnimation;
 import net.minecraft.server.v1_13_R2.PacketPlayOutEntity;
 import net.minecraft.server.v1_13_R2.PacketPlayOutEntityDestroy;
+import net.minecraft.server.v1_13_R2.PacketPlayOutEntityEquipment;
 import net.minecraft.server.v1_13_R2.PacketPlayOutEntityHeadRotation;
 import net.minecraft.server.v1_13_R2.PacketPlayOutEntityMetadata;
 import net.minecraft.server.v1_13_R2.PacketPlayOutEntityTeleport;
@@ -156,6 +158,8 @@ public final class NPC {
     @Setter private double moveHeadThreshold = 1.0;
     // Constants
     private static final String TEAM_NAME = "cavetale.npc";
+    // Equipment
+    @Getter final EnumMap<EnumItemSlot, ItemStack> entityEquipment = new EnumMap<>(EnumItemSlot.class);
 
     // -- Constructors
 
@@ -184,7 +188,7 @@ public final class NPC {
             EntityPlayer entityPlayer = new EntityPlayer(minecraftServer, worldServer, profile, new PlayerInteractManager(worldServer));
             entityPlayer.listName = new ChatComponentText("");
             entity = entityPlayer;
-            id = entity.getId();
+            this.id = entity.getId();
             this.name = name;
             entity.setPositionRotation(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
             if (playerSkin != null) {
@@ -424,7 +428,7 @@ public final class NPC {
     }
 
     public enum Job {
-        NONE, WANDER, WIGGLE, DANCE, SPEECH_BUBBLE, WALK_PATH, IDLE;
+        NONE, WANDER, WIGGLE, DANCE, SPEECH_BUBBLE, WALK_PATH, IDLE, MUSICIAN;
     }
 
     public enum Task {
@@ -776,6 +780,10 @@ public final class NPC {
      * reduce simulation speed.
      */
     public void tick() {
+        if (!location.getWorld().isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
+            if (removeWhenChunkUnloaded) valid = false;
+            return;
+        }
         delegate.onTick(this);
         if (job != null) performJob();
         updateChunkLocation();
@@ -784,10 +792,6 @@ public final class NPC {
         ticksLived += 1;
         if (lifespan > 0 && lifespan < ticksLived) {
             valid = false;
-            return;
-        }
-        if (!location.getWorld().isChunkLoaded(location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
-            if (removeWhenChunkUnloaded) valid = false;
             return;
         }
     }
@@ -1209,6 +1213,35 @@ public final class NPC {
                     turn -= 1;
                 }
                 performTask();
+            }
+            break;
+        }
+        case MUSICIAN: {
+            if (task == Task.CONVERSATION) {
+                performTask();
+            } else {
+                ThreadLocalRandom random = ThreadLocalRandom.current();
+                if (turn <= 0) {
+                    this.turn = 60 + random.nextInt(120);
+                    this.direction = random.nextBoolean() ? random.nextDouble() : -random.nextDouble();
+                } else {
+                    this.turn -= 1;
+                }
+                boolean showParticle = false;
+                if ((ticksLived % 20) == 10) {
+                    swingArm(false);
+                    lookRandom();
+                    showParticle = true;
+                } else if ((ticksLived % 20) == 0) {
+                    swingArm(true);
+                    lookRandom();
+                    showParticle = true;
+                }
+                if (showParticle) {
+                    location.getWorld().spawnParticle(org.bukkit.Particle.NOTE, getHeadLocation(), 2, 0.5, 0.5, 0.5, random.nextDouble());
+                }
+                this.headYaw += direction;
+                location.setYaw((float)this.headYaw);
             }
             break;
         }
@@ -1669,6 +1702,25 @@ public final class NPC {
         sendData(DataVar.ENTITY_CUSTOM_NAME, Optional.of(txt), 0L);
     }
 
+    public void setEquipment(org.bukkit.inventory.EquipmentSlot slot, org.bukkit.inventory.ItemStack item) {
+        EnumItemSlot eis;
+        switch (slot) {
+        case OFF_HAND: eis = EnumItemSlot.OFFHAND; break;
+        case HEAD: eis = EnumItemSlot.HEAD; break;
+        case CHEST: eis = EnumItemSlot.CHEST; break;
+        case LEGS: eis = EnumItemSlot.LEGS; break;
+        case FEET: eis = EnumItemSlot.FEET; break;
+        case HAND: default: eis = EnumItemSlot.MAINHAND;
+        }
+        ItemStack is = CraftItemStack.asNMSCopy(item);
+        this.entityEquipment.put(eis, is);
+        if (this.valid) {
+            this.packets.add(makeEntityEquipmentPacket(eis, is));
+        }
+    }
+
+    // -- Locations
+
     public Location getHeadLocation() {
         return location.clone().add(0.0, entity.length, 0.0);
     }
@@ -1676,6 +1728,8 @@ public final class NPC {
     public Location getEyeLocation() {
         return location.clone().add(0.0, (double)entity.getHeadHeight(), 0.0);
     }
+
+    // --- Speech
 
     public NPC addSpeechBubble(String text, Delegate del) {
         if (chatColor != null) text = chatColor + text;
@@ -1757,6 +1811,23 @@ public final class NPC {
         return new PacketPlayOutEntityMetadata(id, dummy, false);
     }
 
+    List<PacketPlayOutEntityEquipment> makeEntityEquipmentPackets() {
+        return makeEntityEquipmentPackets(this.entityEquipment);
+    }
+
+    List<PacketPlayOutEntityEquipment> makeEntityEquipmentPackets(Map<EnumItemSlot, ItemStack> equipment) {
+        List<PacketPlayOutEntityEquipment> result = new ArrayList<>();
+        for (EnumItemSlot slot: EnumItemSlot.values()) {
+            ItemStack item = equipment.get(slot);
+            if (item != null) result.add(makeEntityEquipmentPacket(slot, item));
+        }
+        return result;
+    }
+
+    PacketPlayOutEntityEquipment makeEntityEquipmentPacket(EnumItemSlot slot, ItemStack item) {
+        return new PacketPlayOutEntityEquipment(this.id, slot, item);
+    }
+
     // --- Private watcher management
 
     private void startWatch(Watcher watcher) {
@@ -1777,6 +1848,9 @@ public final class NPC {
             }
             connection.sendPacket(entityData.makeMetadataPacket());
             connection.sendPacket(new PacketPlayOutEntityVelocity(entity.getId(), 0, 0, 0));
+            for (PacketPlayOutEntityEquipment packet: makeEntityEquipmentPackets()) {
+                connection.sendPacket(packet);
+            }
             break;
         case MOB: case MARKER:
             connection.sendPacket(new PacketPlayOutSpawnEntityLiving((EntityLiving)entity));
@@ -1789,6 +1863,9 @@ public final class NPC {
                     newEntityData.overwriteWith(watcher.entityData);
                     connection.sendPacket(newEntityData.makeMetadataPacket());
                 }
+            }
+            for (PacketPlayOutEntityEquipment packet: makeEntityEquipmentPackets()) {
+                connection.sendPacket(packet);
             }
             break;
         case BLOCK:

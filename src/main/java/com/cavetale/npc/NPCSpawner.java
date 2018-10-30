@@ -137,11 +137,11 @@ public final class NPCSpawner {
                 plugin.getPlayerSkinAsync(id, skinName, (skin) -> {
                         spawning = false;
                         if (!valid) return;
-                        enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, skinName, skin));
+                        enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, this.name, skin));
                     });
                 return true;
             } else {
-                return enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, name, new PlayerSkin("", "", "", "")));
+                return enableNPC(new NPC(plugin, NPC.Type.PLAYER, location, this.name, new PlayerSkin("", "", "", "")));
             }
         case MOB: {
             EntityType et;

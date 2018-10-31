@@ -338,7 +338,7 @@ public final class NPC {
 
     @RequiredArgsConstructor
     public class Watcher {
-        final Player player;
+        public final Player player;
         final ScheduledPacketList packets = new ScheduledPacketList();
         final EntityData entityData = new EntityData();
         long ticksLived;

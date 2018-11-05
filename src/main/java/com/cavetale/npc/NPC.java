@@ -157,7 +157,7 @@ public final class NPC {
     @Setter private double moveYawThreshold = 1.0;
     @Setter private double moveHeadThreshold = 1.0;
     // Constants
-    private static final String TEAM_NAME = "cavetale.npc";
+    public static final String TEAM_NAME = "cavetale.npc";
     // Equipment
     @Getter final EnumMap<EnumItemSlot, ItemStack> entityEquipment = new EnumMap<>(EnumItemSlot.class);
 
@@ -920,6 +920,11 @@ public final class NPC {
                     Scoreboard scoreboard = watcher.player.getScoreboard();
                     Team team = scoreboard.getTeam(TEAM_NAME);
                     if (team == null) {
+                        team = scoreboard.registerNewTeam(TEAM_NAME);
+                        team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
+                    } else if (team.getEntries().size() >= 1024) {
+                        System.err.println("Clearing team " + TEAM_NAME + " due to overload: " + team.getEntries().size());
+                        team.unregister();
                         team = scoreboard.registerNewTeam(TEAM_NAME);
                         team.setOption(Team.Option.NAME_TAG_VISIBILITY, Team.OptionStatus.NEVER);
                     }
@@ -1889,6 +1894,9 @@ public final class NPC {
         case PLAYER:
             connection.sendPacket(new PacketPlayOutPlayerInfo(PacketPlayOutPlayerInfo.EnumPlayerInfoAction.REMOVE_PLAYER, (EntityPlayer)entity));
             connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));
+            Scoreboard scoreboard = watcher.player.getScoreboard();
+            Team team = scoreboard.getTeam(TEAM_NAME);
+            if (team != null) team.removeEntry(name);
             break;
         case MOB: case MARKER: case BLOCK: case ITEM:
             connection.sendPacket(new PacketPlayOutEntityDestroy(new int[] {entity.getId()}));

@@ -50,6 +50,8 @@ import org.bukkit.plugin.java.annotation.plugin.Description;
 import org.bukkit.plugin.java.annotation.plugin.Plugin;
 import org.bukkit.plugin.java.annotation.plugin.Website;
 import org.bukkit.plugin.java.annotation.plugin.author.Author;
+import org.bukkit.scoreboard.Scoreboard;
+import org.bukkit.scoreboard.Team;
 import org.inventivetalent.packetlistener.PacketListenerAPI;
 import org.inventivetalent.packetlistener.handler.PacketHandler;
 import org.inventivetalent.packetlistener.handler.ReceivedPacket;
@@ -268,6 +270,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
         npcs.clear();
         PacketListenerAPI.removePacketHandler(packetHandler);
         instance = null;
+        Scoreboard scoreboard = this.getServer().getScoreboardManager().getMainScoreboard();
+        Team team = scoreboard.getTeam(NPC.TEAM_NAME);
+        if (team != null) team.unregister();
     }
 
     @Override
@@ -375,9 +380,9 @@ public final class NPCPlugin extends JavaPlugin implements NPCManager {
                     saveSpawners();
                     sender.sendMessage("Location set to " + spawner.getLocation());
                     break;
+                default: return false;
                 }
-            }
-            if (args.length == 4) {
+            } else if (args.length == 4) {
                 String value = args[3];
                 spawner.getConfig().set(key, value);
                 spawner.loadConfig();

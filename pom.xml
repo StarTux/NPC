@@ -11,23 +11,24 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <repositories>
-    <!-- Spigot Repo -->
+    <!-- Paper Repo -->
     <repository>
-      <id>spigot-repo</id>
-      <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+      <id>papermc</id>
+      <url>https://papermc.io/repo/repository/maven-public/</url>
     </repository>
-    <!-- Packet Listener API -->
+    <!-- Cavetale Repo -->
     <repository>
-      <id>inventive-repo</id>
-      <url>https://repo.inventivetalent.org/content/groups/public/</url>
+      <id>cavetale</id>
+      <url>https://cavetale.com/jenkins/plugin/repository/everything/</url>
     </repository>
   </repositories>
   <dependencies>
-    <!-- Spigot-API -->
+    <!-- Paper -->
     <dependency>
-      <groupId>org.spigotmc</groupId>
-      <artifactId>spigot</artifactId>
-      <version>1.13.1-R0.1-SNAPSHOT</version>
+      <groupId>com.destroystokyo.paper</groupId>
+      <artifactId>paper</artifactId>
+      <version>1.13.2-R0.1-SNAPSHOT</version>
+      <scope>provided</scope>
     </dependency>
     <!-- Lombok -->
     <dependency>
